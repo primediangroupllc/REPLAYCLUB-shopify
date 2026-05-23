@@ -27,6 +27,11 @@ const STATIC_ALLOWED_ORIGINS = new Set<string>([
 // nested subdomain abuse.
 const LOVABLE_PREVIEW_PATTERN = /^https:\/\/[a-z0-9-]+\.(lovable\.app|lovable\.dev|lovableproject\.com)$/;
 
+// Vercel preview/production URLs for the off-Lovable Shopify fork
+// (primediangroupllc/REPLAYCLUB-shopify). Matches e.g.
+// `https://replayclub-shopify-kewezdrml-replay-club.vercel.app`.
+const VERCEL_REPLAYCLUB_PATTERN = /^https:\/\/replayclub-shopify(-[a-z0-9-]+)?\.vercel\.app$/;
+
 const FALLBACK_ORIGIN = "https://replayclub.io";
 
 // Allowed request headers (union of all patterns observed across the 63
@@ -49,7 +54,8 @@ const ALLOWED_HEADERS = [
 export function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
   if (STATIC_ALLOWED_ORIGINS.has(origin)) return true;
-  return LOVABLE_PREVIEW_PATTERN.test(origin);
+  if (LOVABLE_PREVIEW_PATTERN.test(origin)) return true;
+  return VERCEL_REPLAYCLUB_PATTERN.test(origin);
 }
 
 export function buildCorsHeaders(req: Request): Record<string, string> {
