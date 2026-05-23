@@ -21,6 +21,7 @@ import { useFirstImagesByType } from "@/hooks/useBookingTabImages";
 import { useBookingTabsMeta } from "@/hooks/useBookingTabsMeta";
 import { useHomeCardsCustom } from "@/hooks/useHomeCardsCustom";
 import type { BookingTabType } from "@/lib/bookingTabImages";
+import { getProducts } from "@/lib/products";
 
 const ROOM_TITLE_TO_TAB_TYPE: Record<string, BookingTabType | null> = {
   "Podcast": "podcast",
@@ -309,6 +310,13 @@ const Index = () => {
   // first report uses replaceState (so closing returns to the prior page),
   // subsequent reports pushState (so back maps to step navigation).
   const firstStepReportedRef = useRef(false);
+
+  // TODO(shopify-smoke-test): Remove after confirming Storefront API is wired.
+  useEffect(() => {
+    getProducts(10)
+      .then((p) => console.log("Shopify products:", p))
+      .catch((e) => console.error("Shopify products error:", e));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
