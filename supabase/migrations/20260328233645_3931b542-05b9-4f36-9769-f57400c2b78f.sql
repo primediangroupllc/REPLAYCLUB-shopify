@@ -1,0 +1,1 @@
+DELETE FROM bookings WHERE customer_email = 'test@example.com' AND customer_name = 'Test User';

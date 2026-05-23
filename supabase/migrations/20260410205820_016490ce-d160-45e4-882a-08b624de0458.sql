@@ -1,0 +1,1 @@
+ALTER TABLE public.mixes ADD COLUMN tracklist jsonb DEFAULT '[]'::jsonb;

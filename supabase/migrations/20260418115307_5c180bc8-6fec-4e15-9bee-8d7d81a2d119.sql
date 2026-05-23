@@ -1,0 +1,1 @@
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS show_price BOOLEAN NOT NULL DEFAULT true;

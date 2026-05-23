@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline — Replay Club</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body {
+        margin: 0; padding: 0; height: 100%;
+        background: #000; color: #f5f5f5;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        display: flex; align-items: center; justify-content: center; text-align: center;
+      }
+      .wrap { max-width: 28rem; padding: 2rem; }
+      h1 { font-family: 'Space Grotesk', sans-serif; font-size: 1.75rem; margin: 0 0 1rem; letter-spacing: -0.02em; }
+      p { color: #a1a1aa; line-height: 1.6; margin: 0 0 1.5rem; }
+      button {
+        background: #fff; color: #000; border: 0; padding: 0.75rem 1.5rem;
+        font-weight: 600; border-radius: 9999px; cursor: pointer; font-size: 0.9rem;
+        text-transform: uppercase; letter-spacing: 0.1em;
+      }
+      .logo { width: 5rem; height: 5rem; margin: 0 auto 1.5rem; opacity: 0.9; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <img src="/icons/icon-192.png" alt="Replay Club" class="logo" />
+      <h1>You're offline</h1>
+      <p>Replay Club needs an internet connection to load. Check your network and try again.</p>
+      <button onclick="location.reload()">Retry</button>
+    </div>
+    <script>
+      // Defense in depth: if the service worker served this page but the device
+      // is actually online (e.g. a transient fetch error on a redirect), bounce
+      // back to the originally requested URL so users don't get stuck.
+      (function () {
+        function isOnline() {
+          return typeof navigator !== "undefined" && navigator.onLine !== false;
+        }
+        function recover() {
+          if (!isOnline()) return;
+          // Reload the current URL (bypassing the SW cache) so the real page loads.
+          try {
+            fetch(location.href, { cache: "reload", credentials: "include" })
+              .then(function (r) { if (r.ok) location.reload(); })
+              .catch(function () {});
+          } catch (_) {}
+        }
+        if (isOnline()) {
+          // Small delay to avoid a hard loop if something is genuinely wrong.
+          setTimeout(recover, 600);
+        }
+        window.addEventListener("online", recover);
+      })();
+    </script>
+  </body>
+</html>

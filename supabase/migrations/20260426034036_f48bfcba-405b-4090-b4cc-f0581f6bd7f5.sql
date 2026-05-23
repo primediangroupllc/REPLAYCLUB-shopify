@@ -1,0 +1,1 @@
+ALTER TABLE public.equipment_rentals ADD COLUMN IF NOT EXISTS confirmation_sent boolean NOT NULL DEFAULT false;

@@ -1,0 +1,1 @@
+UPDATE talent SET bio = 'Curated around the live vocal sets of Sereda, Split Signal brings a refined taste of jazz-infused electronic music — from timeless classics to genre-bending hybrid tracks. Expect tech house energy built for the club, paired with deep groove minimal cuts perfect for those late-night afters.' WHERE alias = 'SPLIT SIGNAL';

@@ -1,0 +1,1 @@
+ALTER TABLE public.mixes ADD COLUMN mix_analysis jsonb DEFAULT NULL;

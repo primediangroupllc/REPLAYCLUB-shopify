@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://js.hcaptcha.com https://newassets.hcaptcha.com https://connect.facebook.net https://www.youtube.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://storage.googleapis.com https://*.hcaptcha.com https://www.facebook.com https://i.ytimg.com https://*.ytimg.com https://i9.ytimg.com; media-src 'self' blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://*.hcaptcha.com https://*.lovable.app https://*.lovable.dev https://www.facebook.com https://connect.facebook.net; frame-src https://js.stripe.com https://newassets.hcaptcha.com https://w.soundcloud.com https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self';" />
+    <title>Replay Club — Recording Studio, Podcast &amp; DJ Booking</title>
+    <meta name="description" content="Welcome to the Club — Book sessions at Replay Club, a recording studio, podcast suite, and DJ rehearsal space in Los Angeles.">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="apple-mobile-web-app-title" content="Replay Club">
+    <meta name="application-name" content="Replay Club">
+    <meta name="google-site-verification" content="D5qFEFMh4CB7OBM--HOJNOWi_ELAyYPPcITpwK6ypLE" />
+
+    <!-- Preconnect to font origins to eliminate DNS/TLS chain -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Preconnect to Supabase (bootstrap call fires <100ms after load) and
+         Stripe (loaded as soon as user reaches the Pay step) — saves ~150-300ms
+         on the first request to each on mobile. -->
+    <link rel="preconnect" href="https://airoizwnopiaawshpksx.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://js.stripe.com" />
+
+    <!-- Load fonts as non-render-blocking <link> instead of CSS @import -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mr+Dafoe&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mr+Dafoe&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" /></noscript>
+    
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Replay Club — Recording Studio, Podcast &amp; DJ Booking">
+  <meta name="twitter:title" content="Replay Club — Recording Studio, Podcast &amp; DJ Booking">
+  <meta property="og:description" content="Welcome to the Club — Book sessions at Replay Club, a recording studio, podcast suite, and DJ rehearsal space in Los Angeles.">
+  <meta name="twitter:description" content="Welcome to the Club — Book sessions at Replay Club, a recording studio, podcast suite, and DJ rehearsal space in Los Angeles.">
+  <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/GbEulQM8OzSeZbUIWGdRsN0Y2si1/social-images/social-1774136317931-F005324E-2D74-4D33-A0AC-E72D77632242-Photoroom.webp">
+  <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/GbEulQM8OzSeZbUIWGdRsN0Y2si1/social-images/social-1774136317931-F005324E-2D74-4D33-A0AC-E72D77632242-Photoroom.webp">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://replayclub.io/" />
+
+  <!-- Service-area business schema. NOTE: physical address intentionally
+       omitted — Replay Club is a private, by-appointment studio whose
+       location is confidential. Public schema uses areaServed only. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": "Replay Club",
+    "description": "Private recording studio, podcast suite, and DJ rehearsal space in Los Angeles. By appointment only.",
+    "url": "https://replayclub.io/",
+    "image": "https://storage.googleapis.com/gpt-engineer-file-uploads/GbEulQM8OzSeZbUIWGdRsN0Y2si1/social-images/social-1774136317931-F005324E-2D74-4D33-A0AC-E72D77632242-Photoroom.webp",
+    "email": "replayclubrecords@gmail.com",
+    "priceRange": "$$",
+    "areaServed": {
+      "@type": "City",
+      "name": "Los Angeles"
+    },
+    "makesOffer": [
+      { "@type": "Offer", "name": "DJ Session Booking", "url": "https://replayclub.io/dj-studio" },
+      { "@type": "Offer", "name": "Podcast Studio Booking", "url": "https://replayclub.io/podcast-studio" },
+      { "@type": "Offer", "name": "Livestream Studio", "url": "https://replayclub.io/livestream-studio" },
+      { "@type": "Offer", "name": "Equipment Rental", "url": "https://replayclub.io/equipment-rental" },
+      { "@type": "Offer", "name": "Photo Backdrops", "url": "https://replayclub.io/backdrops" },
+      { "@type": "Offer", "name": "Gift Cards", "url": "https://replayclub.io/gift-cards" }
+    ]
+  }
+  </script>
+</head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,1 @@
+ALTER TABLE public.session_guests ADD COLUMN IF NOT EXISTS id_analysis jsonb;

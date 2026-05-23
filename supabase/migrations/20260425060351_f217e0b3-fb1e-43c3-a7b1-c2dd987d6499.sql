@@ -1,0 +1,1 @@
+ALTER TABLE public.event_rsvps ADD COLUMN IF NOT EXISTS user_phone text;

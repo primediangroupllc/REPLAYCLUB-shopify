@@ -1,0 +1,1 @@
+UPDATE public.talent SET bio = REPLACE(bio, 'MIKEANGELO', 'MIKELANGELO') WHERE id = '77aa81a8-429b-40be-b997-8c1bc2a4c06b';

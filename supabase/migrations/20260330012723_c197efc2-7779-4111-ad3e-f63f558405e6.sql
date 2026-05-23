@@ -1,0 +1,1 @@
+ALTER TABLE public.mixes ADD COLUMN cover_art_url text DEFAULT NULL;

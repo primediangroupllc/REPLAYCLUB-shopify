@@ -1,0 +1,1 @@
+DROP POLICY "Anon can read own booking" ON public.bookings;

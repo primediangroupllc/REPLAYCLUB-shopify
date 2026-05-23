@@ -1,0 +1,1 @@
+DROP POLICY "Anyone can lookup gift card by code" ON public.gift_cards;

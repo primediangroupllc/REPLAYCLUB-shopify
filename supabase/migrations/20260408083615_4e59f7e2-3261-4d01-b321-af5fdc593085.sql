@@ -1,0 +1,1 @@
+ALTER TABLE public.mixes ADD COLUMN IF NOT EXISTS streaming_url text;

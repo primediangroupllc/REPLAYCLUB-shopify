@@ -1,0 +1,1 @@
+ALTER TABLE public.mixes ADD COLUMN waveform_data jsonb DEFAULT NULL;

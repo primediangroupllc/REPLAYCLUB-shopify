@@ -1,0 +1,1 @@
+UPDATE talent SET image_url = 'https://airoizwnopiaawshpksx.supabase.co/storage/v1/object/public/talent-images/split-signal-v2.jpg' WHERE alias = 'SPLIT SIGNAL';

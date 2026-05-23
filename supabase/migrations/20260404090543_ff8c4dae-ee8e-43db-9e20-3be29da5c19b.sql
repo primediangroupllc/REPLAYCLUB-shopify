@@ -1,0 +1,1 @@
+ALTER TABLE public.talent ADD COLUMN preview_track_url text DEFAULT NULL;
