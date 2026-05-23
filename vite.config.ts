@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve as resolvePath } from "node:path";
-import { componentTagger } from "lovable-tagger";
 import { visualizer } from "rollup-plugin-visualizer";
 
 type BuildIdOutputOptions = {
@@ -43,7 +42,6 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
-      mode === "development" && componentTagger(),
       enableBundleStats &&
         visualizer({
           filename: "dist/stats.html",
