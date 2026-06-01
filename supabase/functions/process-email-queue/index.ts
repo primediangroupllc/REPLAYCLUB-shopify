@@ -97,6 +97,10 @@ async function sendViaResend(payload: Record<string, any>, apiKey: string): Prom
     html: payload.html,
   }
   if (payload.text) body.text = payload.text
+  // Route any reply (e.g. a customer replying to a confirmation) to the business
+  // inbox so admins see it. Override per-message with payload.reply_to, or globally
+  // with the REPLY_TO_EMAIL secret.
+  body.reply_to = payload.reply_to || Deno.env.get('REPLY_TO_EMAIL') || 'replayclubrecords@gmail.com'
 
   const siteUrl = Deno.env.get('SITE_URL')
   if (payload.unsubscribe_token && siteUrl) {
