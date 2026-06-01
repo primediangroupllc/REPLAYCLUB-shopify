@@ -11,8 +11,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useRateLimiter } from "@/hooks/useRateLimiter";
 import logo from "@/assets/logo.png";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const HCAPTCHA_SITEKEY = "038c4d7c-e0ea-45d6-836e-58d0bc9eb88c";
+
+// Accounts auto-granted admin on signup (mirrors the DB trigger auto_admin_sereda).
+// Used here only to show the admin-welcome popup; the DB is the source of truth.
+const ADMIN_EMAILS = ["sereda.a@gmail.com", "fumix.mgmt@gmail.com"];
 
 const Auth = () => {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
@@ -26,6 +31,8 @@ const Auth = () => {
   const { toast } = useToast();
   const { t } = useTranslation();
   const { isLocked, lockoutRemaining, recordAttempt, resetAttempts } = useRateLimiter();
+  const [adminWelcome, setAdminWelcome] = useState(false);
+  const skipRedirectRef = useRef(false);
 
   const resetCaptcha = () => {
     setCaptchaToken(null);
@@ -37,6 +44,7 @@ const Auth = () => {
       // Don't redirect if user is on the reset-password page (recovery flow)
       if (window.location.pathname === "/reset-password") return;
       if (event === "SIGNED_IN" && session) {
+        if (skipRedirectRef.current) return; // holding on the admin-welcome popup
         const next = new URLSearchParams(window.location.search).get("next");
         navigate(next && next.startsWith("/") ? next : "/");
       }
@@ -93,17 +101,31 @@ const Auth = () => {
           navigate(next && next.startsWith("/") ? next : "/");
         }
       } else {
-        const { error } = await supabase.auth.signUp({
+        const willBeAdmin = ADMIN_EMAILS.includes(email.trim().toLowerCase());
+        // For admins, suppress the auto-redirect BEFORE signUp (onAuthStateChange
+        // fires during the call) so we can show the welcome popup instead.
+        if (willBeAdmin) skipRedirectRef.current = true;
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { data: { display_name: name }, captchaToken },
         });
-        if (error) throw error;
-        toast({
-          title: t("auth.accountCreated"),
-          description: t("auth.verifyEmail"),
-        });
-        setMode("login");
+        if (error) { skipRedirectRef.current = false; throw error; }
+        if (data.session) {
+          // Auto-confirm on: account created + signed in.
+          if (willBeAdmin) {
+            setAdminWelcome(true); // 🎉 you're an admin
+          }
+          // non-admins: onAuthStateChange already navigated home
+        } else {
+          // Email confirmation required (auto-confirm off): ask them to verify.
+          skipRedirectRef.current = false;
+          toast({
+            title: t("auth.accountCreated"),
+            description: t("auth.verifyEmail"),
+          });
+          setMode("login");
+        }
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -303,6 +325,26 @@ const Auth = () => {
           {t("auth.backToHome")}
         </button>
       </motion.div>
+
+      <Dialog
+        open={adminWelcome}
+        onOpenChange={(open) => { if (!open) { setAdminWelcome(false); navigate("/admin/dashboard"); } }}
+      >
+        <DialogContent className="max-w-sm text-center">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl">🎉 Admin access granted</DialogTitle>
+            <DialogDescription className="text-base">
+              Welcome, admin — your account now has full admin access to Replay Club.
+            </DialogDescription>
+          </DialogHeader>
+          <button
+            onClick={() => { setAdminWelcome(false); navigate("/admin/dashboard"); }}
+            className="w-full chrome-btn font-display font-semibold text-sm uppercase tracking-[0.15em] px-6 py-3 rounded-md mt-2"
+          >
+            Go to Admin Dashboard
+          </button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
