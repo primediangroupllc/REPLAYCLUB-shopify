@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
 
-export const HCAPTCHA_SITEKEY = "f1fe106a-5c0c-4d5e-89c0-9c863b96cdee";
+export const HCAPTCHA_SITEKEY = "c9627c00-7bc0-4b8a-8a50-06863aa8d976";
 
 interface Props {
   onVerify: (token: string) => void;
