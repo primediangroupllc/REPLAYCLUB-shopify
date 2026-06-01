@@ -58,8 +58,8 @@ serve(async (req) => {
     // --- Tracklist detection mode ---
     if (mode === "tracklist") {
       const durationMin = mix.duration_seconds ? Math.round(mix.duration_seconds / 60) : null;
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) {
+      const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+      if (!GEMINI_API_KEY) {
         return new Response(JSON.stringify({ error: "AI not configured" }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -80,14 +80,14 @@ Analysis summary: ${existingSummary || "None"}
 
 Suggest ${durationMin ? Math.max(4, Math.min(20, Math.round(durationMin / 4))) : 8} tracks that would fit this mix. Use real, well-known tracks from these genres. Order them as they would appear in the mix based on the energy profile.`;
 
-      const tlResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const tlResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          Authorization: `Bearer ${GEMINI_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: "gemini-2.5-flash",
           messages: [
             { role: "system", content: "You are a DJ music expert. You MUST call the detect_tracklist function." },
             { role: "user", content: tracklistPrompt },
@@ -193,8 +193,8 @@ Suggest ${durationMin ? Math.max(4, Math.min(20, Math.round(durationMin / 4))) :
       tracklistContext = `\n\nKnown tracklist (${tracklist.length} tracks):\n${tracklist.map((t, i) => `${i + 1}. ${t.artist} – ${t.title}`).join("\n")}`;
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
       return new Response(JSON.stringify({ error: "AI not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -269,14 +269,14 @@ Hard rules for the writing:
 
 9. **Transition Details**: For each detected transition, give position (%), technique, quality, and a one-line note in plain human language ("clean bass swap, locked in tight" / "messy mid collision, vocals stacking awkwardly"). The position field is metadata — but the note text must read like a human comment, never quote percentages.`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${GEMINI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "gemini-2.5-pro",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

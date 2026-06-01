@@ -53,14 +53,14 @@ serve(async (req) => {
     const imageUrl = signedUrlData.signedUrl;
 
     // Use Lovable AI Gateway to analyze the ID
-    const aiResponse = await fetch("https://ai.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+        "Authorization": `Bearer ${Deno.env.get("GEMINI_API_KEY")}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gemini-2.5-flash",
         messages: [
           {
             role: "system",
