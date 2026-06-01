@@ -12,7 +12,7 @@ import { useRateLimiter } from "@/hooks/useRateLimiter";
 import logo from "@/assets/logo.png";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
-const HCAPTCHA_SITEKEY = "c9627c00-7bc0-4b8a-8a50-06863aa8d976";
+const HCAPTCHA_SITEKEY = "038c4d7c-e0ea-45d6-836e-58d0bc9eb88c";
 
 const Auth = () => {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
