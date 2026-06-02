@@ -577,6 +577,28 @@ serve(async (req) => {
         // ageYears===null, the `< 18` test silently fails, and the else branch
         // approves the booking ? bypassing the age gate.
         if (reportFetchFailed || ageYears === null) {
+          // TEST MODE ONLY (event.livemode === false): Stripe Identity test reports
+          // carry no real DOB, so ageYears is always null here and every test booking
+          // would stall in admin review. Auto-approve test-mode events so the flow is
+          // end-to-end testable. LIVE events (real customers) NEVER enter this branch —
+          // they fall through to the proper admin-review gate below, age check intact.
+          if (event.livemode === false) {
+            await supabase.from("id_verifications").update({
+              ocr_extracted_dob: dobIso,
+              ocr_extracted_name: fullName,
+              ocr_raw_response: session as unknown as Record<string, unknown>,
+              review_status: "auto_approved",
+              rejection_reason: "test_mode_auto_approve",
+              reviewed_at: new Date().toISOString(),
+            }).eq("booking_id", bookingId);
+            await supabase.from("bookings").update({
+              verification_status: "approved",
+              user_age_tier: "adult_21",
+              verification_held_until: null,
+            }).eq("id", bookingId);
+            console.warn(`[identity] booking ${bookingId} TEST-MODE auto-approved (no DOB in test report)`);
+            break;
+          }
           await supabase
             .from("id_verifications")
             .update({
