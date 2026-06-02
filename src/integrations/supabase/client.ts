@@ -2,8 +2,11 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// .trim() guards against stray leading/trailing whitespace or newlines pasted into
+// the Vercel env vars — an untrimmed newline ends up mid-URL and makes every fetch
+// throw "Failed to execute 'fetch': Invalid value" (2026-06-02 signup outage).
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.trim();
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
