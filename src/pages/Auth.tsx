@@ -246,6 +246,9 @@ const Auth = () => {
           </button>
         </form>
 
+        {/* OAuth buttons hidden: still wired to lovable.auth (Lovable), which fails against the new Supabase project. Re-enable after switching to supabase.auth.signInWithOAuth + configuring Google/Apple providers. */}
+        {false && (
+        <>
         <div className="relative my-2">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t border-border/50" />
@@ -295,6 +298,8 @@ const Auth = () => {
             {t("auth.continueApple")}
           </button>
         </div>
+        </>
+        )}
 
         <div className="text-center space-y-3">
           {mode === "forgot" ? (
