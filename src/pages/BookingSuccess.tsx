@@ -146,6 +146,9 @@ const BookingSuccess = () => {
               });
               if (data?.success && data?.booking) {
                 setBooking(data.booking);
+              } else if (data?.status === "slot_taken") {
+                // Race-loser: another booking won this slot. Payment was refunded.
+                setError("This time slot was just booked by someone else, so your payment has been fully refunded — it can take a few days to appear on your statement. Please pick another time.");
               } else {
                 setError("Payment is being processed. You'll receive a confirmation email shortly.");
                 reportBookingFailure({

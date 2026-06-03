@@ -2,6 +2,14 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveSmsFrom, resolveAdminEmails } from "../_shared/site-settings.ts";
+import {
+  addCustomerTags,
+  appendBookingToCustomer,
+  findOrCreateCustomer,
+  getShopifyAccessToken,
+  shopifyConfigured,
+} from "../_shared/shopify-admin.ts";
+import { refundDuplicateSlotLoser } from "../_shared/duplicate-slot.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
   apiVersion: "2025-08-27.basil",
@@ -207,8 +215,36 @@ serve(async (req) => {
           .single();
 
         if (updateErr) {
-          console.error("Failed to update booking:", updateErr.message);
-          break;
+          // 23505 = bookings_unique_paid_slot_idx fired: this slot already has a
+          // paid/promo booking. This customer lost the race and was CHARGED —
+          // refund them (idempotent helper) instead of silently stranding them.
+          if ((updateErr as { code?: string }).code === "23505") {
+            const pi = typeof session.payment_intent === "string"
+              ? session.payment_intent
+              : session.payment_intent?.id ?? null;
+            // The paid-flip failed, so the row is still in its pre-paid state —
+            // read slot + amount for the refund/alert.
+            const { data: lost } = await supabase
+              .from("bookings")
+              .select("room_title, booking_date, booking_time, amount_cents, customer_email")
+              .eq("id", bookingId)
+              .single();
+            await refundDuplicateSlotLoser(stripe, supabase, {
+              bookingId,
+              paymentIntentId: pi,
+              amountCents: lost?.amount_cents ?? session.amount_total ?? 0,
+              customerEmail: lost?.customer_email ?? session.customer_details?.email,
+              slot: {
+                room_title: lost?.room_title,
+                booking_date: lost?.booking_date,
+                booking_time: lost?.booking_time,
+              },
+            });
+            break;
+          }
+          // Any other DB error: throw so Stripe retries. Safe now that the
+          // webhook_events 'processed' marker (below) makes re-delivery a no-op.
+          throw new Error(`Failed to update booking ${bookingId}: ${updateErr.message}`);
         }
 
         if (!booking) {
@@ -394,6 +430,36 @@ serve(async (req) => {
           }
         } catch (photogErr) {
           console.error("Photographer alert failed:", photogErr);
+        }
+
+        // Mirror booking history onto the Shopify customer (CRM). Best-effort:
+        // a Shopify failure must never affect the booking. Idempotent on replay
+        // ? appendBookingToCustomer skips a booking id it has already recorded.
+        try {
+          if (shopifyConfigured() && booking.customer_email) {
+            const [firstName, ...rest] = String(booking.customer_name ?? "")
+              .trim()
+              .split(/\s+/)
+              .filter(Boolean);
+            const token = await getShopifyAccessToken();
+            const { customer } = await findOrCreateCustomer(token, {
+              email: booking.customer_email,
+              first_name: firstName || undefined,
+              last_name: rest.length ? rest.join(" ") : undefined,
+              phone: booking.customer_phone ?? undefined,
+            });
+            await appendBookingToCustomer(token, customer.id, {
+              id: booking.id,
+              studio: booking.room_title,
+              date: booking.booking_date,
+              time: booking.booking_time ?? undefined,
+              price: `$${((booking.amount_cents ?? 0) / 100).toFixed(2)}`,
+            });
+            await addCustomerTags(token, customer.id, ["booked"]);
+            console.log(`Shopify: recorded booking ${booking.id} on customer ${customer.id}`);
+          }
+        } catch (shopErr) {
+          console.error("Shopify booking-history write failed:", shopErr);
         }
 
         break;
@@ -758,6 +824,15 @@ serve(async (req) => {
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
+
+    // Mark this event processed so the dedupe check at the top actually fires on
+    // re-delivery. (Previously nothing ever wrote 'processed', so the guard was
+    // dead and Stripe duplicates re-ran the whole handler.)
+    await supabase
+      .from("webhook_events")
+      .update({ status: "processed" })
+      .eq("source", "stripe")
+      .eq("event_id", event.id);
 
     return new Response(JSON.stringify({ received: true }), {
       status: 200,

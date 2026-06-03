@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { resolveSmsFrom } from "../_shared/site-settings.ts";
+import { refundDuplicateSlotLoser } from "../_shared/duplicate-slot.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,13 +37,45 @@ serve(async (req) => {
 
     if (session.payment_status === "paid") {
       // Update booking status
-      const { data: booking } = await supabase
+      const { data: booking, error: updateErr } = await supabase
         .from("bookings")
         .update({ payment_status: "paid" })
         .eq("id", bookingId)
         .eq("stripe_session_id", sessionId)
         .select()
         .single();
+
+      // 23505 = bookings_unique_paid_slot_idx fired: another paid booking already
+      // won this slot. This customer was charged — refund them (idempotent helper,
+      // safe even if stripe-webhook also refunds via the same keyed call).
+      if ((updateErr as { code?: string } | null)?.code === "23505") {
+        const pi = typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null;
+        const { data: lost } = await supabase
+          .from("bookings")
+          .select("room_title, booking_date, booking_time, amount_cents, customer_email")
+          .eq("id", bookingId)
+          .single();
+        await refundDuplicateSlotLoser(stripe, supabase, {
+          bookingId,
+          paymentIntentId: pi,
+          amountCents: lost?.amount_cents ?? 0,
+          customerEmail: lost?.customer_email,
+          slot: {
+            room_title: lost?.room_title,
+            booking_date: lost?.booking_date,
+            booking_time: lost?.booking_time,
+          },
+        });
+        // 200 (not 4xx) so functions.invoke surfaces the body to the client,
+        // which shows the refund message. Matches this function's existing
+        // "success: false" not-paid response shape below.
+        return new Response(
+          JSON.stringify({ success: false, status: "slot_taken", refunded: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
 
       if (booking) {
         // Send confirmation SMS
