@@ -97,6 +97,13 @@ const Auth = () => {
         resetAttempts();
         toast({ title: t("auth.welcomeBack") });
         if (data.session) {
+          // Keep the Shopify customer mirror in sync on login. Fire-and-forget +
+          // idempotent (customer-sync updates if the customer already exists);
+          // also covers the email-confirmation-on case where signup returns no
+          // session, so the customer still lands in Shopify on first login.
+          supabase.functions
+            .invoke("customer-sync", { body: { email: email.trim().toLowerCase() } })
+            .catch((e) => console.error("Shopify customer-sync (login) failed:", e));
           const next = new URLSearchParams(window.location.search).get("next");
           navigate(next && next.startsWith("/") ? next : "/");
         }
@@ -112,6 +119,19 @@ const Auth = () => {
         });
         if (error) { skipRedirectRef.current = false; throw error; }
         if (data.session) {
+          // Mirror the new signup into Shopify (CRM). Fire-and-forget so a
+          // Shopify hiccup never blocks account creation; the fetch survives the
+          // onAuthStateChange navigation below.
+          const [firstName, ...rest] = (name ?? "").trim().split(/\s+/).filter(Boolean);
+          supabase.functions
+            .invoke("customer-sync", {
+              body: {
+                email: email.trim().toLowerCase(),
+                first_name: firstName || undefined,
+                last_name: rest.length ? rest.join(" ") : undefined,
+              },
+            })
+            .catch((e) => console.error("Shopify customer-sync (signup) failed:", e));
           // Auto-confirm on: account created + signed in.
           if (willBeAdmin) {
             setAdminWelcome(true); // 🎉 you're an admin
