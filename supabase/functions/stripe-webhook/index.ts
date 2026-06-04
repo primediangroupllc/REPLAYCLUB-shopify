@@ -633,7 +633,7 @@ serve(async (req) => {
         // Look up the booking once so we can release the slot lock if needed.
         const { data: bookingRow } = await supabase
           .from("bookings")
-          .select("id, room_title, booking_date, booking_time")
+          .select("id, room_title, booking_date, booking_time, customer_email")
           .eq("id", bookingId)
           .maybeSingle();
 
@@ -696,6 +696,19 @@ serve(async (req) => {
           break;
         }
 
+        // DOB cross-check: the DOB on the government ID must match the DOB the
+        // account self-reported at signup (exact day). Only enforced when a stored
+        // DOB exists. A mismatch = wrong/borrowed ID or a bad signup DOB; the
+        // account's DOB stays editable (not locked until an APPROVED booking), so
+        // the user can fix it and retry. Under-18 takes precedence over this.
+        let dobMismatch = false;
+        if (dobIso && bookingRow?.customer_email) {
+          const { data: expectedDob } = await supabase.rpc("profile_dob_for_email", {
+            p_email: bookingRow.customer_email,
+          });
+          if (expectedDob && expectedDob !== dobIso) dobMismatch = true;
+        }
+
         if (ageYears < 18) {
           // Hard reject: 18+ only, no exceptions.
           await supabase
@@ -732,6 +745,41 @@ serve(async (req) => {
           }
 
           console.log(`[identity] booking ${bookingId} rejected: under 18`);
+        } else if (dobMismatch) {
+          // ID is 18+, but the DOB on the government ID does not match the DOB the
+          // account self-reported at signup -> reject. Nothing to refund (no
+          // customer charge happens before this step); the slot is released.
+          await supabase
+            .from("id_verifications")
+            .update({
+              ocr_extracted_dob: dobIso,
+              ocr_extracted_name: fullName,
+              ocr_raw_response: session as unknown as Record<string, unknown>,
+              review_status: "auto_approved",
+              rejection_reason: "dob_mismatch",
+              reviewed_at: new Date().toISOString(),
+            })
+            .eq("booking_id", bookingId);
+
+          await supabase
+            .from("bookings")
+            .update({
+              verification_status: "rejected",
+              verification_held_until: null,
+              decline_reason: "dob_mismatch",
+            })
+            .eq("id", bookingId);
+
+          if (bookingRow) {
+            await supabase
+              .from("slot_locks")
+              .delete()
+              .eq("room_title", bookingRow.room_title)
+              .eq("booking_date", bookingRow.booking_date)
+              .eq("booking_time", bookingRow.booking_time);
+          }
+
+          console.log(`[identity] booking ${bookingId} rejected: dob_mismatch`);
         } else {
           await supabase
             .from("id_verifications")

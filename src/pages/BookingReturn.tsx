@@ -29,6 +29,7 @@ const BookingReturn = () => {
   const bookingId = params.get("booking_id");
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>("checking");
+  const [declineReason, setDeclineReason] = useState<string | null>(null);
   // When the inline single-page booking flow started verification, the return
   // URL carries `?return_to=<landing path>`. Only honour a safe same-site
   // relative path (leading `/`, no `//`, no scheme) to avoid open-redirects.
@@ -128,6 +129,7 @@ const BookingReturn = () => {
           setTimeout(() => navigate(stuckTarget, { replace: true }), 900);
           return;
         }
+        setDeclineReason(data?.decline_reason ?? null);
         setStatus("rejected");
         return;
       }
@@ -176,19 +178,38 @@ const BookingReturn = () => {
         {status === "rejected" && (
           <>
             <XCircle className="mx-auto h-10 w-10 text-destructive" />
-            <h1 className="text-2xl font-semibold chrome-text">
-              Verification could not be completed
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              If you believe this is an error, please contact{" "}
-              <a
-                className="underline"
-                href="mailto:replayclubrecords@gmail.com"
-              >
-                replayclubrecords@gmail.com
-              </a>
-              .
-            </p>
+            {declineReason === "dob_mismatch" ? (
+              <>
+                <h1 className="text-2xl font-semibold chrome-text">
+                  Date of birth didn't match
+                </h1>
+                <p className="text-muted-foreground text-sm">
+                  The date of birth on your ID doesn't match what you provided at
+                  signup. Your slot has been released. If this was a typo, please
+                  contact{" "}
+                  <a className="underline" href="mailto:replayclubrecords@gmail.com">
+                    replayclubrecords@gmail.com
+                  </a>{" "}
+                  to update your account and try again.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-2xl font-semibold chrome-text">
+                  Verification could not be completed
+                </h1>
+                <p className="text-muted-foreground text-sm">
+                  If you believe this is an error, please contact{" "}
+                  <a
+                    className="underline"
+                    href="mailto:replayclubrecords@gmail.com"
+                  >
+                    replayclubrecords@gmail.com
+                  </a>
+                  .
+                </p>
+              </>
+            )}
             <Link
               to="/"
               className="inline-block mt-4 text-sm underline text-muted-foreground"
