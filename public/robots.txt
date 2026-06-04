@@ -1,16 +1,9 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
+# ⚠️ SOFT-LAUNCH — site is on the live domain but not open for real bookings yet
+# (Stripe in test mode). Blocking crawlers so the interim site isn't indexed.
+#
+# ❗❗ REMOVE THIS AT REAL LAUNCH ❗❗ — restore the allow-all + sitemap:
+#   User-agent: *
+#   Allow: /
+#   Sitemap: https://replayclub.io/sitemap.xml
 User-agent: *
-Allow: /
-
-Sitemap: https://replayclub.io/sitemap.xml
+Disallow: /
