@@ -19,11 +19,47 @@ const HCAPTCHA_SITEKEY = "038c4d7c-e0ea-45d6-836e-58d0bc9eb88c";
 // Used here only to show the admin-welcome popup; the DB is the source of truth.
 const ADMIN_EMAILS = ["sereda.a@gmail.com", "fumix.mgmt@gmail.com"];
 
+// Date-of-birth pre-gate (signup). Self-reported 18+ filter; Stripe Identity is
+// the authoritative age check at booking. Three dropdowns are more mobile-reliable
+// than a native date picker.
+const DOB_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const DOB_YEARS = (() => {
+  const now = new Date().getFullYear();
+  const years: number[] = [];
+  for (let y = now - 18; y >= now - 100; y--) years.push(y);
+  return years;
+})();
+const pad2 = (s: string) => s.padStart(2, "0");
+
+// Returns { ok:true, iso } when a real date that is 18+, else { ok:false, reason }.
+function validateDob(year: string, month: string, day: string):
+  | { ok: true; iso: string }
+  | { ok: false; reason: "missing" | "invalid" | "under18" } {
+  if (!year || !month || !day) return { ok: false, reason: "missing" };
+  const y = Number(year), m = Number(month), d = Number(day);
+  const dt = new Date(y, m - 1, d);
+  // Reject impossible dates (e.g. Feb 31 rolls over to March).
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) {
+    return { ok: false, reason: "invalid" };
+  }
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setFullYear(cutoff.getFullYear() - 18);
+  if (dt > cutoff) return { ok: false, reason: "under18" };
+  return { ok: true, iso: `${y}-${pad2(month)}-${pad2(day)}` };
+}
+
 const Auth = () => {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [dobMonth, setDobMonth] = useState("");
+  const [dobDay, setDobDay] = useState("");
+  const [dobYear, setDobYear] = useState("");
   const [loading, setLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const captchaRef = useRef<HCaptcha>(null);
@@ -70,6 +106,17 @@ const Auth = () => {
       toast({ title: "Captcha required", description: "Please complete the captcha challenge below", variant: "destructive" });
       return;
     }
+    if (mode === "signup") {
+      const dob = validateDob(dobYear, dobMonth, dobDay);
+      if (!dob.ok) {
+        toast(
+          dob.reason === "under18"
+            ? { title: "You must be 18 or older", description: "Replay Club accounts are limited to people 18 and older. If this is incorrect, please contact support.", variant: "destructive" }
+            : { title: "Date of birth required", description: "Please select a valid date of birth.", variant: "destructive" },
+        );
+        return;
+      }
+    }
     setLoading(true);
 
     try {
@@ -112,10 +159,11 @@ const Auth = () => {
         // For admins, suppress the auto-redirect BEFORE signUp (onAuthStateChange
         // fires during the call) so we can show the welcome popup instead.
         if (willBeAdmin) skipRedirectRef.current = true;
+        const dob = validateDob(dobYear, dobMonth, dobDay); // already gated 18+ above
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { display_name: name }, captchaToken },
+          options: { data: { display_name: name, date_of_birth: dob.ok ? dob.iso : null }, captchaToken },
         });
         if (error) { skipRedirectRef.current = false; throw error; }
         if (data.session) {
@@ -196,6 +244,28 @@ const Auth = () => {
                 className="bg-card border-border text-foreground"
                 required
               />
+            </div>
+          )}
+          {mode === "signup" && (
+            <div className="space-y-2">
+              <Label className="text-foreground font-body text-xs uppercase tracking-wider">
+                Date of Birth
+              </Label>
+              <div className="grid grid-cols-3 gap-2">
+                <select aria-label="Birth month" value={dobMonth} onChange={(e) => setDobMonth(e.target.value)} required className="bg-card border border-border text-foreground rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="">Month</option>
+                  {DOB_MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                </select>
+                <select aria-label="Birth day" value={dobDay} onChange={(e) => setDobDay(e.target.value)} required className="bg-card border border-border text-foreground rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="">Day</option>
+                  {Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
+                </select>
+                <select aria-label="Birth year" value={dobYear} onChange={(e) => setDobYear(e.target.value)} required className="bg-card border border-border text-foreground rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="">Year</option>
+                  {DOB_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <p className="text-muted-foreground text-[11px] font-body">You must be 18 or older to book.</p>
             </div>
           )}
           <div className="space-y-2">
