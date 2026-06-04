@@ -124,6 +124,7 @@ interface Booking {
   equipment: unknown;
   id_photo_url: string | null;
   id_verified: string | null;
+  verification_status: string | null;
   layout: string | null;
   sound: string | null;
   lighting: string | null;
@@ -1512,13 +1513,22 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                                 </button>
                               </div>
 
-                              {/* ID Verification Review */}
-                              {booking.id_photo_url && (
+                              {/* ID Verification Review — legacy photo flow OR Stripe-Identity manual review */}
+                              {(booking.id_photo_url || booking.verification_status === "pending_admin_review") && (
                                 <div className="mt-3 border-t border-border/30 pt-3 space-y-2">
                                   <p className="text-[10px] font-display font-semibold uppercase tracking-[0.15em] text-muted-foreground flex items-center gap-1.5">
                                     <ShieldCheck className="w-3 h-3" /> ID Verification
                                   </p>
-                                  <IdPhotoViewer photoPath={booking.id_photo_url} />
+                                  {booking.id_photo_url ? (
+                                    <IdPhotoViewer photoPath={booking.id_photo_url} />
+                                  ) : (
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                      Stripe Identity — flagged for{" "}
+                                      <span className="text-foreground font-semibold">manual review</span>{" "}
+                                      (DOB unreadable or report fetch failed). No photo on file; decide from the
+                                      customer&apos;s Stripe Identity session.
+                                    </p>
+                                  )}
                                   <div className="flex gap-2">
                                     <button
                                       onClick={async () => {
@@ -1530,7 +1540,7 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                                           toast({ title: "Approval failed", description: error.message, variant: "destructive" });
                                           return;
                                         }
-                                        setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, id_verified: "approved" } : b));
+                                        setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, id_verified: "approved", verification_status: "approved" } : b));
                                         toast({ title: "ID Approved", description: `${booking.customer_name}'s ID has been approved.` });
                                         supabase.functions.invoke("send-transactional-email", {
                                           body: {
@@ -1547,7 +1557,7 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                                           },
                                         });
                                       }}
-                                      disabled={booking.id_verified === "approved"}
+                                      disabled={booking.id_verified === "approved" || booking.verification_status === "approved"}
                                       className="flex-1 py-1.5 rounded-md text-[10px] font-display font-semibold uppercase tracking-wider bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
                                     >
                                       Approve
@@ -1562,7 +1572,7 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                                           toast({ title: "Rejection failed", description: error.message, variant: "destructive" });
                                           return;
                                         }
-                                        setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, id_verified: "rejected" } : b));
+                                        setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, id_verified: "rejected", verification_status: "rejected" } : b));
                                         toast({ title: "ID Rejected", description: `${booking.customer_name}'s ID has been rejected.` });
                                         supabase.functions.invoke("send-transactional-email", {
                                           body: {
@@ -1580,7 +1590,7 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                                           },
                                         });
                                       }}
-                                      disabled={booking.id_verified === "rejected"}
+                                      disabled={booking.id_verified === "rejected" || booking.verification_status === "rejected"}
                                       className="flex-1 py-1.5 rounded-md text-[10px] font-display font-semibold uppercase tracking-wider bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
                                     >
                                       Reject
