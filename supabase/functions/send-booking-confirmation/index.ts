@@ -80,7 +80,7 @@ function renderBookingEmail(booking: {
           <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#0a0a0a 0%,#1a1a1a 100%);border-radius:12px 12px 0 0;padding:32px 40px;text-align:center;">
-              <img src="https://airoizwnopiaawshpksx.supabase.co/storage/v1/object/public/email-assets/logo.png" alt="Replay Club" width="200" style="display:block;margin:0 auto 16px;max-width:200px;height:auto;" />
+              <img src="https://ynpkkoqzenmctqrmtnxs.supabase.co/storage/v1/object/public/email-assets/logo.png" alt="Replay Club" width="200" style="display:block;margin:0 auto 16px;max-width:200px;height:auto;" />
               <p style="margin:8px 0 0;font-size:13px;color:#8a8a8a;letter-spacing:2px;text-transform:uppercase;">
                 Booking Confirmed
               </p>
