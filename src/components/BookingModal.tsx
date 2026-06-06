@@ -364,7 +364,6 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
   // booking record (consent_accepted_at / consent_version / consent_accepted)
   // so future legal disputes can reference exactly what was shown.
   const [consentAcceptedAt, setConsentAcceptedAt] = useState<string | null>(null);
-  const [showConsentError, setShowConsentError] = useState(false);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
   const [lockedSlots, setLockedSlots] = useState<string[]>([]);
   const [dayBookingCount, setDayBookingCount] = useState(0);
@@ -1752,10 +1751,7 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
 
   const handleNext = () => {
     if (currentStepLabel === "Pay") {
-      if (!termsAccepted) {
-        setShowConsentError(true);
-        return;
-      }
+      if (!termsAccepted) return; // button stays disabled until terms accepted
       handlePay();
       return;
     }
@@ -2055,7 +2051,6 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
     setTermsAccepted(false);
     setTermsExpanded(false);
     setConsentAcceptedAt(null);
-    setShowConsentError(false);
     setAuthLoaded(false);
     setGiftCardCode("");
     setGiftCardApplied(null);
@@ -3547,7 +3542,6 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                       const checked = e.target.checked;
                       setTermsAccepted(checked);
                       setConsentAcceptedAt(checked ? new Date().toISOString() : null);
-                      if (checked) setShowConsentError(false);
                     }}
                     className="mt-1 accent-chrome w-4 h-4 rounded border-border"
                   />
@@ -3555,11 +3549,6 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                     I have read and agree to all of the above terms and conditions.
                   </span>
                 </label>
-                {showConsentError && !termsAccepted && (
-                  <p className="text-[11px] font-body text-destructive" role="alert">
-                    Please review and accept the terms above before continuing.
-                  </p>
-                )}
                 <p className="text-[10px] font-body text-muted-foreground/70 text-center">
                   By clicking "Pay" you confirm all of the above.
                 </p>
@@ -3618,6 +3607,11 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                           : "Continue"}
               </button>
             </div>
+            {currentStepLabel === "Pay" && !termsAccepted && (
+              <p className="mt-2 text-[11px] font-body text-muted-foreground text-center">
+                Please accept the terms above to enable payment.
+              </p>
+            )}
           </div>
         )}
     </BookingFlowShell>
