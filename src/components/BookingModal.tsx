@@ -1740,9 +1740,16 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
       // only proceeds back into the modal flow on resume from /booking/return.
       // Phone is optional on the Stripe Identity path; use account phone if
       // available, otherwise allow checkout to continue without it.
-      case "VerifyStripe":
+      case "VerifyStripe": {
+        // Mirror the handlers (createDraftBooking / handleStartStripeIdentity):
+        // when an authed user's address was never seeded into local state it
+        // still lives in bootstrap. .trim() guards a trailing newline (JS `$`
+        // won't match before it). Without this the read-only email field
+        // silently dead-locks the "Verify with Stripe" button.
+        const effEmail = (email || bootstrap?.user?.email || "").trim();
         return !!name.trim() &&
-          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(effEmail);
+      }
       case "Consent": return !!consentSignature && !!name.trim();
       case "Pay": return termsAccepted;
       default: return false;
@@ -3610,6 +3617,13 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
             {currentStepLabel === "Pay" && !termsAccepted && (
               <p className="mt-2 text-[11px] font-body text-muted-foreground text-center">
                 Please accept the terms above to enable payment.
+              </p>
+            )}
+            {currentStepLabel === "VerifyStripe" && !isVerificationApproved && !canProceed() && (
+              <p className="mt-2 text-[11px] font-body text-muted-foreground text-center">
+                {!name.trim()
+                  ? "Enter your full name (as it appears on your ID) to continue."
+                  : "Something went wrong loading your details. Please refresh the page and try again."}
               </p>
             )}
           </div>
