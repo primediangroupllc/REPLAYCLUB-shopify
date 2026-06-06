@@ -34,9 +34,10 @@ const MIME_BY_EXT: Record<string, string> = {
   m4a: "audio/mp4",
 };
 
-// Placeholder client-side cap (requirement #10). The bucket also hard-limits at
-// 1 GB server-side; tune this before launch once we know real mix sizes.
-const MAX_MIX_BYTES = 200 * 1024 * 1024; // 200 MB
+// Client-side cap (requirement #10), matched to the bucket's 1 GB server-side
+// hard limit so the two agree.
+const MAX_MIX_BYTES = 1024 * 1024 * 1024; // 1 GB
+const MAX_MIX_LABEL = "1GB";
 
 const fmtMb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
@@ -82,7 +83,7 @@ export default function UploadMixDialog({
     if (f.size > MAX_MIX_BYTES) {
       toast({
         title: "File too large",
-        description: `Max ${fmtMb(MAX_MIX_BYTES)} for now — yours is ${fmtMb(f.size)}.`,
+        description: `Max ${MAX_MIX_LABEL} for now — yours is ${fmtMb(f.size)}.`,
         variant: "destructive",
       });
       if (fileRef.current) fileRef.current.value = "";
@@ -183,7 +184,7 @@ export default function UploadMixDialog({
             Upload a mix
           </DialogTitle>
           <DialogDescription className="font-body text-xs">
-            MP3, WAV, AIFF, or M4A · up to {fmtMb(MAX_MIX_BYTES)}. We'll analyze it and
+            MP3, WAV, AIFF, or M4A · up to {MAX_MIX_LABEL}. We'll analyze it and
             post your report card to your profile after review.
           </DialogDescription>
         </DialogHeader>
