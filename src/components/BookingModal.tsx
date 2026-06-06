@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useTransition, useMemo, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -560,6 +560,7 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
   // status — replaces 3 cascading effects (auth, profile, loyalty) with a
   // single edge-function call. Cached 30s in TanStack Query so reopening the
   // modal (or a stepper re-render) doesn't refetch.
+  const queryClient = useQueryClient();
   const bootstrapEmail = email && email.includes("@") ? email.toLowerCase() : "";
   const { data: bootstrap } = useQuery({
     queryKey: ["booking-bootstrap", bootstrapEmail],
@@ -567,9 +568,23 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     queryFn: async () => {
+      // Auth-race fix (2026-06-06): this query and the hover-prefetch can fire
+      // before supabase-js has hydrated the session from localStorage, so
+      // functions.invoke would send the ANON key as the Bearer → the edge fn
+      // returns `user: null` → email/name never seed. The stable key + 30s
+      // staleTime then block a refetch after hydration, so a refresh doesn't
+      // recover (it re-races). Await getSession() so the session is loaded, then
+      // attach the user token EXPLICITLY so the caller is always identified when
+      // a session exists (guests stay anonymous — `undefined` → default anon).
+      const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke(
         "get-booking-bootstrap",
-        { body: bootstrapEmail ? { email: bootstrapEmail } : {} },
+        {
+          body: bootstrapEmail ? { email: bootstrapEmail } : {},
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : undefined,
+        },
       );
       if (error) throw error;
       return data as {
@@ -627,6 +642,19 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
     // user's own typing isn't reverted by a later refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, bootstrap]);
+
+  // Auth-race belt-and-suspenders: if the session arrives AFTER the bootstrap
+  // already resolved (late hydration, or the user signs in while the modal is
+  // open), refetch so email/name/admin seed in. Pairs with the explicit token
+  // attach in the bootstrap queryFn above.
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        queryClient.invalidateQueries({ queryKey: ["booking-bootstrap"] });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [queryClient]);
 
   const isEquipmentRental =
     room?.title === ROOM_EQUIPMENT_RENTAL && selectedEquipment && selectedEquipment.length > 0;
