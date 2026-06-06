@@ -53,7 +53,13 @@ function validateDob(year: string, month: string, day: string):
 }
 
 const Auth = () => {
-  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">(() => {
+    // Honor ?mode=signup / ?mode=forgot from the URL. Booking gates send
+    // guests here via /auth?mode=signup&next=... — this param was previously
+    // ignored, landing every redirected guest on the login form.
+    const m = new URLSearchParams(window.location.search).get("mode");
+    return m === "signup" || m === "forgot" ? m : "login";
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -205,6 +211,11 @@ const Auth = () => {
 
   const title = mode === "login" ? t("auth.signIn") : mode === "signup" ? t("auth.createAccount") : t("auth.resetPassword");
   const subtitle = mode === "login" ? t("auth.welcomeBack") : mode === "signup" ? t("auth.joinClub") : t("auth.resetDesc");
+  // Contextual banner when a guest was sent here from a booking action
+  // (requireAuth / ?book= / ?selector=) — makes the account wall feel like a
+  // continuation of booking rather than a jarring detour.
+  const nextParam = new URLSearchParams(window.location.search).get("next");
+  const fromBooking = !!nextParam && (nextParam.includes("book=") || nextParam.includes("selector="));
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
@@ -225,6 +236,11 @@ const Auth = () => {
           />
           <h1 className="font-display text-xl font-bold text-foreground">{title}</h1>
           <p className="text-muted-foreground text-sm font-body mt-1">{subtitle}</p>
+          {fromBooking && mode !== "forgot" && (
+            <p className="text-sm text-foreground/90 font-body mt-3 px-3 py-2 rounded-md bg-primary/10 border border-primary/20">
+              {t("auth.completeBooking", "Almost there — sign in or create your account to complete your booking.")}
+            </p>
+          )}
         </div>
 
         <div className="card-premium p-6 space-y-6">

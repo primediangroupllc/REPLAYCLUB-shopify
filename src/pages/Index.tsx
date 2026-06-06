@@ -695,10 +695,7 @@ const Index = () => {
     }
     // Allow ?selector=1 (e.g. from /backdrops "Book" CTAs) to open the room selector.
     if (params.get("selector") === "1") {
-      if (!isLoggedIn) {
-        navigate(`/auth?mode=signup&next=${encodeURIComponent("/?selector=1")}`);
-        return;
-      }
+      // Doors-open (2026-06-06): the selector is browsable by guests.
       setSelectorOpen(true);
       params.delete("selector");
       const qs = params.toString();
@@ -952,8 +949,9 @@ const Index = () => {
       navigate(r.startsWith("/") ? r : `/${r}`);
       return;
     }
-    const slug = normalizeBookingSlug(service.title);
-    if (!requireAuth(`/?book=${slug}`)) return;
+    // Doors-open (2026-06-06): no auth gate here — guests reach the room
+    // landing page and browse freely. requireAuth still guards handleBookRoom
+    // (the actual booking start).
     setSelectorOpen(false);
     const route = roomLandingRoutes[service.title];
     if (route) {
@@ -1216,7 +1214,7 @@ const Index = () => {
         };
         return (
           <HeroSection
-            onBookClick={() => { if (isLoggedIn) { setSelectorOpen(true); } else { navigate("/auth?mode=signup"); } }}
+            onBookClick={() => { setSelectorOpen(true); }}
             isLoggedIn={isLoggedIn}
             haloTabs={haloTabs}
             // Don't mark any tab active on the hero halo — every orbit button
@@ -1463,11 +1461,9 @@ const Index = () => {
       <StickyMobileCTA
         hidden={bookingOpen || selectorOpen || cartOpen}
         onBookClick={() => {
-          if (isLoggedIn) {
-            setSelectorOpen(true);
-          } else {
-            navigate("/auth?mode=signup");
-          }
+          // Doors-open (2026-06-06): guests open the selector and browse;
+          // the account wall lives at the start of an actual booking.
+          setSelectorOpen(true);
         }}
       />
       {/* Background audio - FUMIX set (quiet, volume=10%) */}

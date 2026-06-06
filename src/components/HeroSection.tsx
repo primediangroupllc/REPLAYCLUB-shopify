@@ -167,7 +167,10 @@ const HeroSection = ({ onBookClick, isLoggedIn, haloTabs, selectedTab, onTabSele
           onClick={onBookClick}
           className="chrome-btn font-display font-semibold text-sm uppercase tracking-[0.15em] px-10 py-4 rounded-md transition-all"
         >
-          {isLoggedIn ? t("hero.enter", "ENTER") : t("hero.join")}
+          {/* Doors open for everyone (2026-06-06): the landing CTA no longer
+              gates on login — anyone can ENTER and browse. Account is asked for
+              only when a booking is actually started (see Index requireAuth). */}
+          {t("hero.enter", "ENTER")}
         </motion.button>
       </div>
 
