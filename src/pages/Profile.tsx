@@ -18,6 +18,8 @@ import ReferralProgram from "@/components/ReferralProgram";
 import MixReportCard from "@/components/MixReportCard";
 import SoundDNA from "@/components/SoundDNA";
 import MixLineageTree from "@/components/MixLineageTree";
+import UploadMixDialog from "@/components/UploadMixDialog";
+import MixStatusBadge from "@/components/MixStatusBadge";
 import TicketPass, { type TicketPassData } from "@/components/TicketPass";
 import SessionRecordBadge from "@/components/SessionRecordBadge";
 import ReminderPreferences from "@/components/ReminderPreferences";
@@ -73,6 +75,12 @@ interface Mix {
   created_at: string;
   mix_analysis: any | null;
   tracklist: { title: string; artist: string }[] | null;
+  status?: string | null;
+  user_notes?: string | null;
+  admin_notes?: string | null;
+  uploaded_by_role?: string | null;
+  uploaded_by_user_id?: string | null;
+  updated_at?: string | null;
 }
 
 interface WaitlistEntry {
@@ -2367,6 +2375,27 @@ const Profile = () => {
 
           {activeTab === "mixes" && (
             <div className="space-y-4">
+              {/* Upload your own mix */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="font-display text-sm font-semibold text-foreground uppercase tracking-wider">Your mixes</h3>
+                  <p className="text-[11px] text-muted-foreground font-body">Upload a set to get an AI report card after review.</p>
+                </div>
+                {userId && (
+                  <UploadMixDialog
+                    userId={userId}
+                    onUploaded={async () => {
+                      const { data } = await supabase
+                        .from("mixes")
+                        .select("*")
+                        .eq("user_id", userId)
+                        .order("created_at", { ascending: false });
+                      if (data) setMixes(data as unknown as Mix[]);
+                    }}
+                  />
+                )}
+              </div>
+
               {/* Sound DNA */}
               <SoundDNA analyses={mixes.filter((m) => m.mix_analysis).map((m) => m.mix_analysis)} />
 
@@ -2377,14 +2406,21 @@ const Profile = () => {
                 {mixes.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground font-body text-sm">
                     <Music className="w-8 h-8 mx-auto mb-3 opacity-40" />
-                    No recorded mixes yet
+                    No mixes yet
                     <p className="text-xs mt-1 opacity-60">
-                      Your mixes from Replay Club sessions will appear here
+                      Upload your own set above — your Replay Club session recordings show up here too.
                     </p>
                   </div>
                 ) : (
                   mixes.map((mix) => (
-                    <MixCard key={mix.id} mix={mix} />
+                    <div key={mix.id} className="space-y-1">
+                      {mix.status && mix.status !== "approved" && (
+                        <div className="flex justify-end">
+                          <MixStatusBadge status={mix.status} />
+                        </div>
+                      )}
+                      <MixCard mix={mix} />
+                    </div>
                   ))
                 )}
               </div>

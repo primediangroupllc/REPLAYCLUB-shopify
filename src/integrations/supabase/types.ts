@@ -2302,6 +2302,7 @@ export type Database = {
       }
       mixes: {
         Row: {
+          admin_notes: string | null
           cover_art_url: string | null
           created_at: string
           description: string | null
@@ -2312,13 +2313,19 @@ export type Database = {
           mix_analysis: Json | null
           recorded_at: string | null
           reminder_sent: boolean | null
+          status: string
           streaming_url: string | null
           title: string
           tracklist: Json | null
+          updated_at: string
+          uploaded_by_role: string
+          uploaded_by_user_id: string | null
           user_id: string
+          user_notes: string | null
           waveform_data: Json | null
         }
         Insert: {
+          admin_notes?: string | null
           cover_art_url?: string | null
           created_at?: string
           description?: string | null
@@ -2329,13 +2336,19 @@ export type Database = {
           mix_analysis?: Json | null
           recorded_at?: string | null
           reminder_sent?: boolean | null
+          status?: string
           streaming_url?: string | null
           title: string
           tracklist?: Json | null
+          updated_at?: string
+          uploaded_by_role?: string
+          uploaded_by_user_id?: string | null
           user_id: string
+          user_notes?: string | null
           waveform_data?: Json | null
         }
         Update: {
+          admin_notes?: string | null
           cover_art_url?: string | null
           created_at?: string
           description?: string | null
@@ -2346,10 +2359,15 @@ export type Database = {
           mix_analysis?: Json | null
           recorded_at?: string | null
           reminder_sent?: boolean | null
+          status?: string
           streaming_url?: string | null
           title?: string
           tracklist?: Json | null
+          updated_at?: string
+          uploaded_by_role?: string
+          uploaded_by_user_id?: string | null
           user_id?: string
+          user_notes?: string | null
           waveform_data?: Json | null
         }
         Relationships: []

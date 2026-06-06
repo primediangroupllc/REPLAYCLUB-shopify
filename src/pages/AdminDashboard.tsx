@@ -103,6 +103,7 @@ import logo from "@/assets/logo.png";
 import { transcodeWavToMp3 } from "@/lib/transcodeWav";
 import { compressAudioToMp3 } from "@/lib/compressAudio";
 import { logAdminAction } from "@/lib/auditLog";
+import MixStatusBadge, { MIX_STATUSES } from "@/components/MixStatusBadge";
 import { findPhotographerPackage } from "@/lib/bookingConstants";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { ADMIN_DASHBOARD_TABS } from "@/lib/adminDashboardTabs";
@@ -691,6 +692,7 @@ const AdminDashboard = () => {
       }
       setUploadStage("saving");
 
+      const { data: { session: adminSession } } = await supabase.auth.getSession();
       const { error: insertError } = await supabase.from("mixes").insert({
         user_id: mixUserId,
         title: mixTitle,
@@ -699,6 +701,11 @@ const AdminDashboard = () => {
         cover_art_url: coverArtPath,
         streaming_url: streamingPath,
         recorded_at: new Date().toISOString(),
+        // Admin-assigned mixes are live immediately (unchanged behaviour); the
+        // status/provenance columns just record that explicitly.
+        status: "approved",
+        uploaded_by_role: "admin",
+        uploaded_by_user_id: adminSession?.user.id ?? null,
       } as any);
       if (insertError) throw insertError;
 
@@ -755,6 +762,46 @@ const AdminDashboard = () => {
       logAdminAction("delete", "mix", mixId);
       toast({ title: "Mix deleted" });
     }
+  };
+
+  const handleSetMixStatus = async (mixId: string, status: string) => {
+    const { error } = await supabase.from("mixes").update({ status }).eq("id", mixId);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    setMixes(prev => prev.map(m => (m.id === mixId ? { ...m, status } : m)));
+    logAdminAction("update", "mix", mixId, { status });
+    toast({ title: `Marked ${status.replace(/_/g, " ")}` });
+  };
+
+  const handleSaveMixAdminNotes = async (mixId: string, notes: string) => {
+    const { error } = await supabase.from("mixes").update({ admin_notes: notes || null }).eq("id", mixId);
+    if (error) {
+      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    setMixes(prev => prev.map(m => (m.id === mixId ? { ...m, admin_notes: notes || null } : m)));
+    toast({ title: "Notes saved" });
+  };
+
+  // Manual analysis (Brian: AI stays manual for now). analyze-mix needs
+  // waveform_data; if it isn't generated yet the function errors and we surface
+  // it. Status is left for the admin to set — analysis only writes mix_analysis.
+  const handleAnalyzeMix = async (mixId: string) => {
+    toast({ title: "Analyzing mix…", description: "This can take a moment." });
+    const { error } = await supabase.functions.invoke("analyze-mix", { body: { mix_id: mixId } });
+    if (error) {
+      toast({
+        title: "Analysis failed",
+        description: typeof error === "object" ? JSON.stringify(error) : String(error),
+        variant: "destructive",
+      });
+      return;
+    }
+    await loadMixes();
+    logAdminAction("update", "mix", mixId, { action: "analyze" });
+    toast({ title: "Analysis complete", description: "Report card generated. Set the status when ready." });
   };
 
 const IdPhotoViewer = ({ photoPath }: { photoPath: string }) => {
@@ -2063,40 +2110,93 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                     .map((mix) => (
                     <div
                       key={mix.id}
-                      className="flex items-center justify-between p-3 bg-card rounded-md border border-border/30"
+                      className="p-3 bg-card rounded-md border border-border/30 space-y-2"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <Music className="w-3.5 h-3.5 text-primary shrink-0" />
-                          <span className="font-display text-sm font-semibold text-foreground truncate">
-                            {mix.title}
-                          </span>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Music className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="font-display text-sm font-semibold text-foreground truncate">
+                              {mix.title}
+                            </span>
+                            <MixStatusBadge status={mix.status} />
+                            {mix.uploaded_by_role === "user" && (
+                              <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-display">self-upload</span>
+                            )}
+                            {mix.mix_analysis && (
+                              <span className="text-[9px] uppercase tracking-wider text-emerald-400 font-display">report ✓</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground font-body mt-0.5 truncate">
+                            {allProfiles.find(p => p.id === mix.user_id)?.display_name || mix.user_id.slice(0, 8) + "…"} • {new Date(mix.created_at).toLocaleDateString()}
+                          </p>
+                          {mix.description && (
+                            <p className="text-[10px] text-muted-foreground/70 font-body truncate">{mix.description}</p>
+                          )}
                         </div>
-                        <p className="text-[11px] text-muted-foreground font-body mt-0.5 truncate">
-                          {allProfiles.find(p => p.id === mix.user_id)?.display_name || mix.user_id.slice(0, 8) + "…"} • {new Date(mix.created_at).toLocaleDateString()}
-                        </p>
-                        {mix.description && (
-                          <p className="text-[10px] text-muted-foreground/70 font-body truncate">{mix.description}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 ml-2">
-                        {mix.file_url && (
-                          <a
-                            href={mix.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:text-primary/80 text-xs font-display"
+                        <div className="flex items-center gap-2 ml-2 shrink-0">
+                          {mix.file_url && (
+                            <a
+                              href={mix.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:text-primary/80 text-xs font-display"
+                            >
+                              Play
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleDeleteMix(mix.id)}
+                            className="text-destructive hover:text-destructive/80 transition-colors"
+                            title="Delete mix"
                           >
-                            Play
-                          </a>
-                        )}
-                        <button
-                          onClick={() => handleDeleteMix(mix.id)}
-                          className="text-destructive hover:text-destructive/80 transition-colors"
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Admin review controls */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <select
+                          value={mix.status || "pending_review"}
+                          onChange={(e) => handleSetMixStatus(mix.id, e.target.value)}
+                          className="bg-background border border-border text-foreground rounded-md text-[11px] font-body px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          {MIX_STATUSES.map((s) => (
+                            <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleSetMixStatus(mix.id, "approved")}
+                          className="text-[11px] font-display uppercase tracking-wider px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleSetMixStatus(mix.id, "rejected")}
+                          className="text-[11px] font-display uppercase tracking-wider px-2 py-1 rounded-md bg-destructive/15 text-destructive border border-destructive/30 hover:bg-destructive/25 transition-colors"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          onClick={() => handleAnalyzeMix(mix.id)}
+                          className="text-[11px] font-display uppercase tracking-wider px-2 py-1 rounded-md bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
+                        >
+                          {mix.mix_analysis ? "Re-analyze" : "Analyze"}
                         </button>
                       </div>
+
+                      <input
+                        type="text"
+                        defaultValue={mix.admin_notes || ""}
+                        placeholder="Admin notes…"
+                        onBlur={(e) => {
+                          if ((e.target.value || "") !== (mix.admin_notes || "")) {
+                            handleSaveMixAdminNotes(mix.id, e.target.value);
+                          }
+                        }}
+                        className="w-full bg-background border border-border text-foreground rounded-md text-[11px] font-body px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
                     </div>
                   ))}
                   {mixes.length === 0 && (
