@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
+import TrackRecognitionPanel from "@/components/TrackRecognitionPanel";
 // Heavy admin sub-tabs — lazy-load so each tab only downloads when opened
 const AdminTalentManager = lazy(() => import("@/components/AdminTalentManager"));
 const AdminCalendarView = lazy(() => import("@/components/AdminCalendarView"));
@@ -455,6 +456,7 @@ const AdminDashboard = () => {
   const [gcIssuing, setGcIssuing] = useState(false);
   // Mixes state
   const [mixes, setMixes] = useState<any[]>([]);
+  const [recognizeMix, setRecognizeMix] = useState<{ id: string; title: string } | null>(null);
   const [allProfiles, setAllProfiles] = useState<{ id: string; display_name: string | null }[]>([]);
   const [mixUserId, setMixUserId] = useState("");
   const [mixTitle, setMixTitle] = useState("");
@@ -2184,7 +2186,21 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                         >
                           {mix.mix_analysis ? "Re-analyze" : "Analyze"}
                         </button>
+                        <button
+                          onClick={() => setRecognizeMix({ id: mix.id, title: mix.title ?? "Mix" })}
+                          className="text-[11px] font-display uppercase tracking-wider px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition-colors"
+                        >
+                          Recognize Tracks
+                        </button>
                       </div>
+                      {recognizeMix?.id === mix.id && (
+                        <TrackRecognitionPanel
+                          mix={recognizeMix}
+                          mode="admin"
+                          open
+                          onOpenChange={(o) => !o && setRecognizeMix(null)}
+                        />
+                      )}
 
                       <input
                         type="text"

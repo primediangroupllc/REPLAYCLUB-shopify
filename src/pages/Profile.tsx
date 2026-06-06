@@ -20,6 +20,7 @@ import SoundDNA from "@/components/SoundDNA";
 import MixLineageTree from "@/components/MixLineageTree";
 import UploadMixDialog from "@/components/UploadMixDialog";
 import MixStatusBadge from "@/components/MixStatusBadge";
+import TrackRecognitionPanel from "@/components/TrackRecognitionPanel";
 import TicketPass, { type TicketPassData } from "@/components/TicketPass";
 import SessionRecordBadge from "@/components/SessionRecordBadge";
 import ReminderPreferences from "@/components/ReminderPreferences";
@@ -1530,6 +1531,7 @@ const Profile = () => {
   const cancelCutoffHours =
     publicSettings.cancellation_cutoff_hours ?? BOOKING_POLICY_DEFAULTS.cancelCutoffHours;
   const [mixes, setMixes] = useState<Mix[]>([]);
+  const [recognizeMix, setRecognizeMix] = useState<Mix | null>(null);
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   const [tickets, setTickets] = useState<TicketPassData[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -2420,6 +2422,22 @@ const Profile = () => {
                         </div>
                       )}
                       <MixCard mix={mix} />
+                      <div className="flex justify-end pt-0.5">
+                        <button
+                          onClick={() => setRecognizeMix(mix)}
+                          className="text-[11px] font-display uppercase tracking-wider px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition-colors"
+                        >
+                          Recognize Tracks
+                        </button>
+                      </div>
+                      {recognizeMix?.id === mix.id && (
+                        <TrackRecognitionPanel
+                          mix={{ id: mix.id, title: mix.title }}
+                          mode="user"
+                          open
+                          onOpenChange={(o) => !o && setRecognizeMix(null)}
+                        />
+                      )}
                     </div>
                   ))
                 )}
