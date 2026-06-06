@@ -2,7 +2,9 @@ import { Helmet } from "react-helmet-async";
 
 const DEFAULT_IMAGE =
   "https://storage.googleapis.com/gpt-engineer-file-uploads/GbEulQM8OzSeZbUIWGdRsN0Y2si1/social-images/social-1774136317931-F005324E-2D74-4D33-A0AC-E72D77632242-Photoroom.webp";
-const SITE_URL = "https://replayclub.io";
+// Canonical domain is www (apex 308-redirects to www); keep this in sync so
+// canonical + og:url tags point at the real host.
+const SITE_URL = "https://www.replayclub.io";
 
 type SeoHeadProps = {
   title: string;

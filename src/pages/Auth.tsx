@@ -115,8 +115,11 @@ const Auth = () => {
     if (mode === "signup") {
       const dob = validateDob(dobYear, dobMonth, dobDay);
       if (!dob.ok) {
+        // `in`-operator narrowing: robust even under this project's loose
+        // tsconfig, where `!dob.ok` alone doesn't narrow the union.
+        const reason = "reason" in dob ? dob.reason : "missing";
         toast(
-          dob.reason === "under18"
+          reason === "under18"
             ? { title: "You must be 18 or older", description: "Replay Club accounts are limited to people 18 and older. If this is incorrect, please contact support.", variant: "destructive" }
             : { title: "Date of birth required", description: "Please select a valid date of birth.", variant: "destructive" },
         );
@@ -216,6 +219,7 @@ const Auth = () => {
   // continuation of booking rather than a jarring detour.
   const nextParam = new URLSearchParams(window.location.search).get("next");
   const fromBooking = !!nextParam && (nextParam.includes("book=") || nextParam.includes("selector="));
+  const fromRental = !!nextParam && nextParam.includes("equipment");
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
@@ -236,9 +240,11 @@ const Auth = () => {
           />
           <h1 className="font-display text-xl font-bold text-foreground">{title}</h1>
           <p className="text-muted-foreground text-sm font-body mt-1">{subtitle}</p>
-          {fromBooking && mode !== "forgot" && (
+          {(fromBooking || fromRental) && mode !== "forgot" && (
             <p className="text-sm text-foreground/90 font-body mt-3 px-3 py-2 rounded-md bg-primary/10 border border-primary/20">
-              {t("auth.completeBooking", "Almost there — sign in or create your account to complete your booking.")}
+              {fromRental
+                ? t("auth.completeRental", "Almost there — sign in or create your account to complete your rental.")
+                : t("auth.completeBooking", "Almost there — sign in or create your account to complete your booking.")}
             </p>
           )}
         </div>

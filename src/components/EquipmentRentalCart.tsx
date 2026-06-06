@@ -239,7 +239,9 @@ const EquipmentRentalCart = () => {
   const proceedToConsent = () => {
     if (!user) {
       toast.error("Please sign in to rent equipment");
-      navigate("/auth");
+      // Doors-open parity with the booking path: land on the signup form with
+      // a context banner and a return path back to the rental flow.
+      navigate(`/auth?mode=signup&next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
     }
     if (cart.size === 0) return;
