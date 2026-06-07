@@ -42,6 +42,7 @@ import SignaturePad from "@/components/SignaturePad";
 import StudioRepSignature from "@/components/StudioRepSignature";
 import IdCameraCapture from "@/components/IdCameraCapture";
 import { reportBookingFailure } from "@/lib/bookingFailureReporter";
+import { bootstrapKey } from "@/lib/prefetchBookingBootstrap";
 import {
   EQUIPMENT_TURNAROUND_BUFFER_DAYS,
   logEquipmentBlockEvent,
@@ -320,6 +321,12 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
   // when available.
   const [phone, setPhone] = useState("");
   const [authLoaded, setAuthLoaded] = useState(false);
+  // Current auth identity, resolved from the Supabase session. Drives the
+  // booking-bootstrap cache key (via bootstrapKey) so a guest-prefetched
+  // { user: null } (keyed "anon") is never served to a signed-in modal.
+  // `undefined` = not yet resolved → the query stays disabled so its FIRST
+  // fetch always uses the correct identity (no anon→user key flip mid-flight).
+  const [authUserId, setAuthUserId] = useState<string | null | undefined>(undefined);
   // Track which contact fields the user has touched, so we only show
   // "this is required" errors after they leave a field empty — never
   // while they're still typing.
@@ -563,8 +570,11 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
   const queryClient = useQueryClient();
   const bootstrapEmail = email && email.includes("@") ? email.toLowerCase() : "";
   const { data: bootstrap } = useQuery({
-    queryKey: ["booking-bootstrap", bootstrapEmail],
-    enabled: open,
+    // Identity-keyed (see bootstrapKey): a guest's "anon" cache entry can never
+    // be read by a signed-in modal. Gated on a resolved auth state so the first
+    // fetch uses the right identity instead of guessing "anon" pre-hydration.
+    queryKey: bootstrapKey(authUserId, email),
+    enabled: open && authUserId !== undefined,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     queryFn: async () => {
@@ -643,17 +653,27 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, bootstrap]);
 
-  // Auth-race belt-and-suspenders: if the session arrives AFTER the bootstrap
-  // already resolved (late hydration, or the user signs in while the modal is
-  // open), refetch so email/name/admin seed in. Pairs with the explicit token
-  // attach in the bootstrap queryFn above.
+  // Resolve + track the auth identity that keys the bootstrap query. getSession
+  // gives the initial value (null for guests); onAuthStateChange keeps it live
+  // so signing in WHILE the modal is open transitions the key (anon → user id)
+  // and the query refetches with the token — the primary auth-race fix.
+  // The invalidate is belt-and-suspenders for token refreshes that keep the
+  // same identity (key unchanged), e.g. a silent refresh mid-session.
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+    let active = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (active) setAuthUserId(session?.user?.id ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setAuthUserId(session?.user?.id ?? null);
+      if (event === "TOKEN_REFRESHED") {
         queryClient.invalidateQueries({ queryKey: ["booking-bootstrap"] });
       }
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [queryClient]);
 
   const isEquipmentRental =
