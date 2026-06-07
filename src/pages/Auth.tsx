@@ -13,7 +13,11 @@ import logo from "@/assets/logo.png";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
-const HCAPTCHA_SITEKEY = "038c4d7c-e0ea-45d6-836e-58d0bc9eb88c";
+// Dev uses hCaptcha's official localhost test sitekey (the prod key's Domains list can't
+// allow localhost); production builds use the real key. See HCaptchaWidget.tsx.
+const HCAPTCHA_SITEKEY = import.meta.env.DEV
+  ? "10000000-ffff-ffff-ffff-000000000001"
+  : "038c4d7c-e0ea-45d6-836e-58d0bc9eb88c";
 
 // Accounts auto-granted admin on signup (mirrors the DB trigger auto_admin_sereda).
 // Used here only to show the admin-welcome popup; the DB is the source of truth.
