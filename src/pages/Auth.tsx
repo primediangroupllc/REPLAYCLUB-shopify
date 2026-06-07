@@ -12,6 +12,7 @@ import { useRateLimiter } from "@/hooks/useRateLimiter";
 import logo from "@/assets/logo.png";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { DOB_MONTHS, DOB_YEARS, validateDob } from "@/lib/dob";
 
 // Dev uses hCaptcha's official localhost test sitekey (the prod key's Domains list can't
 // allow localhost); production builds use the real key. See HCaptchaWidget.tsx.
@@ -22,39 +23,6 @@ const HCAPTCHA_SITEKEY = import.meta.env.DEV
 // Accounts auto-granted admin on signup (mirrors the DB trigger auto_admin_sereda).
 // Used here only to show the admin-welcome popup; the DB is the source of truth.
 const ADMIN_EMAILS = ["sereda.a@gmail.com", "fumix.mgmt@gmail.com"];
-
-// Date-of-birth pre-gate (signup). Self-reported 18+ filter; Stripe Identity is
-// the authoritative age check at booking. Three dropdowns are more mobile-reliable
-// than a native date picker.
-const DOB_MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-const DOB_YEARS = (() => {
-  const now = new Date().getFullYear();
-  const years: number[] = [];
-  for (let y = now - 18; y >= now - 100; y--) years.push(y);
-  return years;
-})();
-const pad2 = (s: string) => s.padStart(2, "0");
-
-// Returns { ok:true, iso } when a real date that is 18+, else { ok:false, reason }.
-function validateDob(year: string, month: string, day: string):
-  | { ok: true; iso: string }
-  | { ok: false; reason: "missing" | "invalid" | "under18" } {
-  if (!year || !month || !day) return { ok: false, reason: "missing" };
-  const y = Number(year), m = Number(month), d = Number(day);
-  const dt = new Date(y, m - 1, d);
-  // Reject impossible dates (e.g. Feb 31 rolls over to March).
-  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) {
-    return { ok: false, reason: "invalid" };
-  }
-  const cutoff = new Date();
-  cutoff.setHours(0, 0, 0, 0);
-  cutoff.setFullYear(cutoff.getFullYear() - 18);
-  if (dt > cutoff) return { ok: false, reason: "under18" };
-  return { ok: true, iso: `${y}-${pad2(month)}-${pad2(day)}` };
-}
 
 const Auth = () => {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">(() => {
