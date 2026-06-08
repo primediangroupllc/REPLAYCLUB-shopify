@@ -140,5 +140,37 @@ export function useInlineSignup() {
     }
   }, []);
 
-  return { loading, error, signUp, verifyOtp, resendOtp };
+  // Inline sign-in for the "email already exists" path: the guest entered an
+  // email that already has an account, so sign them in (password) and continue
+  // the booking. No captcha needed — login isn't server-captcha-gated
+  // (security_captcha_enabled=false) and the details-step token was consumed.
+  const signIn = useCallback(
+    async ({ email, password }: { email: string; password: string }): Promise<InlineVerifyResult> => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          setError(error.message);
+          return { status: "error", message: error.message };
+        }
+        if (!data.session) {
+          const message = "Could not sign in. Please check your password.";
+          setError(message);
+          return { status: "error", message };
+        }
+        syncCustomer(email, ""); // login mirror — email only, matching Auth.tsx
+        return { status: "session", session: data.session };
+      } catch (e: any) {
+        const message = e?.message ?? "Sign in failed";
+        setError(message);
+        return { status: "error", message };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  return { loading, error, signUp, verifyOtp, resendOtp, signIn };
 }

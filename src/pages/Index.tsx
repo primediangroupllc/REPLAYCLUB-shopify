@@ -709,10 +709,9 @@ const Index = () => {
       navigate("/", { replace: true });
       return;
     }
-    if (!isLoggedIn) {
-      navigate(`/auth?mode=signup&next=${encodeURIComponent(`/?book=${bookSlug}`)}`);
-      return;
-    }
+    // Layer 2: guests reach the booking modal from the ?book= deep-link too; the
+    // account wall is the inline signup at the checkout step (VerifyStripe).
+    // (Resume bookings — ?book=resume — still require a session; gated above.)
     // Optional ?step=<label> (e.g. Date, Time, Tier, Pay) deep-links to a step.
     const stepParam = normalizeBookingStep((location.state as { openBookingStep?: string } | null)?.openBookingStep || params.get("step"));
     const idStuck = params.get("id_stuck") === "1";
@@ -834,14 +833,10 @@ const Index = () => {
     roomsRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Auth gate: every booking entry point must run through this. Anonymous
-  // users are redirected to /auth?mode=signup with a ?next= param so we can
-  // bring them back to the exact booking flow they tried to start.
-  const requireAuth = (nextPath: string): boolean => {
-    if (isLoggedIn) return true;
-    navigate(`/auth?mode=signup&next=${encodeURIComponent(nextPath)}`);
-    return false;
-  };
+  // Layer 2 (account-at-checkout): booking entry points NO LONGER gate on auth —
+  // guests browse all the way into the booking modal. The account wall moved DOWN
+  // to the checkout step (inline signup at VerifyStripe in BookingModal). Resume
+  // bookings (?book=resume) still require a session (handled in the deep-link effect).
 
   // PR — Browser back/forward + iOS swipe-back ↔ booking modal step nav.
   // BookingModal calls onStepChange whenever its visible step changes; we
@@ -949,9 +944,9 @@ const Index = () => {
       navigate(r.startsWith("/") ? r : `/${r}`);
       return;
     }
-    // Doors-open (2026-06-06): no auth gate here — guests reach the room
-    // landing page and browse freely. requireAuth still guards handleBookRoom
-    // (the actual booking start).
+    // Doors-open (Layer 1) + account-at-checkout (Layer 2): no auth gate here OR
+    // at handleBookRoom — guests browse to the room landing page AND into the
+    // booking modal; the account wall is the inline signup at the checkout step.
     setSelectorOpen(false);
     const route = roomLandingRoutes[service.title];
     if (route) {
@@ -966,7 +961,8 @@ const Index = () => {
 
   const handleBookRoom = (room: typeof rooms[0]) => {
     const slug = normalizeBookingSlug(room.title);
-    if (!requireAuth(`/?book=${slug}`)) return;
+    // Layer 2: no auth gate — guests open the booking modal; the account wall is
+    // the inline signup at the checkout step (VerifyStripe).
     setSelectorOpen(false);
     setSelectedTab(room.title);
     setTabActivated(true);

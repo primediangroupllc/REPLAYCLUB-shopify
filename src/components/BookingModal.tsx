@@ -43,6 +43,10 @@ import StudioRepSignature from "@/components/StudioRepSignature";
 import IdCameraCapture from "@/components/IdCameraCapture";
 import { reportBookingFailure } from "@/lib/bookingFailureReporter";
 import { bootstrapKey } from "@/lib/prefetchBookingBootstrap";
+import { DOB_MONTHS, DOB_YEARS, validateDob } from "@/lib/dob";
+import HCaptchaWidget from "@/components/HCaptchaWidget";
+import type HCaptcha from "@hcaptcha/react-hcaptcha";
+import { useInlineSignup } from "@/hooks/useInlineSignup";
 import {
   EQUIPMENT_TURNAROUND_BUFFER_DAYS,
   logEquipmentBlockEvent,
@@ -327,6 +331,28 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
   // `undefined` = not yet resolved → the query stays disabled so its FIRST
   // fetch always uses the correct identity (no anon→user key flip mid-flight).
   const [authUserId, setAuthUserId] = useState<string | null | undefined>(undefined);
+  // A guest = auth resolved (not undefined) AND no session. Drives the dual-mode
+  // checkout step: guests get the inline "your details" account form; signed-in
+  // users get today's read-only confirm fields. (Layer 2 Chunk 2.)
+  const isGuest = authUserId === null;
+  // Layer 2 inline account fields (guest checkout). Field state only at this
+  // checkpoint (B1) — the submit/OTP state machine is wired in later checkpoints.
+  const [password, setPassword] = useState("");
+  const [dobMonth, setDobMonth] = useState("");
+  const [dobDay, setDobDay] = useState("");
+  const [dobYear, setDobYear] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const inlineSignup = useInlineSignup();
+  // A2 OTP sub-step (guest checkout, confirmation-required state). `awaitingOtp`
+  // flips on when signUp returns needs_otp; the render swaps the details form for
+  // the 6-digit code input.
+  const [otpCode, setOtpCode] = useState("");
+  const [awaitingOtp, setAwaitingOtp] = useState(false);
+  // Inline sign-in sub-step: flips on when signUp reports the email already has
+  // an account, so the guest signs in (password) instead of creating a new one.
+  const [loginMode, setLoginMode] = useState(false);
+  // Ref to reset the hCaptcha widget after a failed signUp (token is single-use).
+  const guestCaptchaRef = useRef<HCaptcha>(null);
   // Track which contact fields the user has touched, so we only show
   // "this is required" errors after they leave a field empty — never
   // while they're still typing.
@@ -1789,11 +1815,25 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
       // Phone is optional on the Stripe Identity path; use account phone if
       // available, otherwise allow checkout to continue without it.
       case "VerifyStripe": {
-        // Mirror the handlers (createDraftBooking / handleStartStripeIdentity):
-        // when an authed user's address was never seeded into local state it
-        // still lives in bootstrap. .trim() guards a trailing newline (JS `$`
-        // won't match before it). Without this the read-only email field
-        // silently dead-locks the "Verify with Stripe" button.
+        // GUEST (Layer 2): inline account form — gate on the full signup field
+        // set (email + password + name + 18+ DOB + captcha) before "Create
+        // account & continue" enables.
+        if (isGuest) {
+          // Inline sign-in sub-step: email is already valid; need a password.
+          if (loginMode) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && password.length >= 6;
+          // OTP sub-step: gate on a complete 6-digit code.
+          if (awaitingOtp) return otpCode.trim().length === 6;
+          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
+            password.length >= 6 &&
+            !!name.trim() &&
+            validateDob(dobYear, dobMonth, dobDay).ok &&
+            !!captchaToken;
+        }
+        // Signed-in: mirror the handlers (createDraftBooking /
+        // handleStartStripeIdentity): when an authed user's address was never
+        // seeded into local state it still lives in bootstrap. .trim() guards a
+        // trailing newline (JS `$` won't match before it). Without this the
+        // read-only email field silently dead-locks the "Verify with Stripe" button.
         const effEmail = (email || bootstrap?.user?.email || "").trim();
         return !!name.trim() &&
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(effEmail);
@@ -1830,6 +1870,14 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
         startStepTransition(() => {
           setStep((prev) => Math.min(prev + 1, stepLabels.length - 1));
         });
+        return;
+      }
+      // GUEST (Layer 2): create the account first, then launch Identity. If a
+      // confirmation code is pending (autoconfirm off), verify it instead.
+      if (isGuest) {
+        if (loginMode) { void handleInlineLoginAndStartIdentity(); return; }
+        if (awaitingOtp) { void handleVerifyOtpAndStartIdentity(); return; }
+        void handleGuestSignupAndStartIdentity();
         return;
       }
       void handleStartStripeIdentity();
@@ -1919,6 +1967,16 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
 
   const handleCreateDraftAndAdvance = async () => {
     if (!room?.title || !date || (!isEquipmentRental && !time)) return;
+    // GUEST (Layer 2 — sub-step C): no account yet, so DON'T create the draft
+    // (and its 30-min slot lock) here. Just advance to the checkout step; the
+    // draft is created post-signup inside handleStartStripeIdentity. This means a
+    // guest who abandons at checkout holds no slot and orphans nothing.
+    if (isGuest) {
+      startStepTransition(() => {
+        setStep((prev) => Math.min(prev + 1, stepLabels.length - 1));
+      });
+      return;
+    }
     // PR 4c — In the new flow there is no Email-Verify step, so name/email
     // come from the authenticated session via get-booking-bootstrap (email,
     // user_metadata.full_name) or the profiles row (display_name). If those
@@ -2091,6 +2149,78 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
     }
   };
 
+  // GUEST (Layer 2 Chunk 2b): create the account inline at checkout, then launch
+  // Stripe Identity. B2 wires the autoconfirm-on happy path (signUp -> session ->
+  // Identity). The OTP sub-step (needs_otp) and inline login (email_exists) land
+  // in the next checkpoints (B3/B4) — placeholder toasts until then.
+  const handleGuestSignupAndStartIdentity = async () => {
+    const dob = validateDob(dobYear, dobMonth, dobDay);
+    if (!dob.ok) {
+      toast.error("Please enter a valid date of birth — you must be 18 or older.");
+      return;
+    }
+    const result = await inlineSignup.signUp({
+      email: email.trim(),
+      password,
+      displayName: name.trim(),
+      dobIso: dob.iso,
+      captchaToken: captchaToken ?? "",
+    });
+    if (result.status === "session") {
+      // Autoconfirm-on: account created + signed in. handleStartStripeIdentity
+      // creates the draft (now authed) and redirects to Stripe Identity.
+      await handleStartStripeIdentity();
+      return;
+    }
+    if (result.status === "needs_otp") {
+      // Confirmation required (autoconfirm off): switch to the inline 6-digit
+      // code sub-step. The account exists but is unconfirmed and NO draft/slot
+      // was created yet, so there's nothing to clean up if they abandon.
+      setAwaitingOtp(true);
+      return;
+    }
+    if (result.status === "email_exists") {
+      // Existing account — switch to inline sign-in (email stays prefilled).
+      setLoginMode(true);
+      return;
+    }
+    // signUp failed — the captcha token was consumed; reset it for a clean retry.
+    guestCaptchaRef.current?.resetCaptcha();
+    setCaptchaToken(null);
+    toast.error(result.message || "Could not create your account. Please try again.");
+  };
+
+  // GUEST inline sign-in sub-step: existing account → sign in → launch Identity.
+  const handleInlineLoginAndStartIdentity = async () => {
+    const result = await inlineSignup.signIn({ email: email.trim(), password });
+    if (result.status === "session") {
+      setLoginMode(false);
+      await handleStartStripeIdentity();
+      return;
+    }
+    toast.error(result.message || "Could not sign in. Please check your password.");
+  };
+
+  // GUEST OTP sub-step: verify the 6-digit code → mint session → launch Identity.
+  const handleVerifyOtpAndStartIdentity = async () => {
+    const result = await inlineSignup.verifyOtp({
+      email: email.trim(),
+      token: otpCode.trim(),
+      displayName: name.trim(),
+    });
+    if (result.status === "session") {
+      setAwaitingOtp(false);
+      await handleStartStripeIdentity();
+      return;
+    }
+    toast.error(result.message || "That code didn't work — check it and try again.");
+  };
+
+  const handleResendOtp = async () => {
+    const r = await inlineSignup.resendOtp({ email: email.trim() });
+    toast(r.ok ? "We sent a new code to your email." : (r.message || "Could not resend the code."));
+  };
+
   const handleReset = () => {
     setStep(0);
     setDate(undefined);
@@ -2103,6 +2233,9 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
     setVerificationCode("");
     setEmailVerified(false);
     setCodeSent(false);
+    setAwaitingOtp(false);
+    setOtpCode("");
+    setLoginMode(false);
     setTermsAccepted(false);
     setTermsExpanded(false);
     setConsentAcceptedAt(null);
@@ -3110,6 +3243,36 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                     Consent and finish checkout.
                   </p>
                 </div>
+              ) : isGuest ? (
+                loginMode ? (
+                  <div className="text-center space-y-2">
+                    <p className="text-sm font-display font-semibold text-foreground">
+                      Welcome back
+                    </p>
+                    <p className="text-xs font-body text-muted-foreground">
+                      You already have an account — sign in to finish your booking.
+                    </p>
+                  </div>
+                ) : awaitingOtp ? (
+                  <div className="text-center space-y-2">
+                    <p className="text-sm font-display font-semibold text-foreground">
+                      Verify your email
+                    </p>
+                    <p className="text-xs font-body text-muted-foreground">
+                      We sent a 6-digit code to {email || "your email"}. Paste it below to continue.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center space-y-2">
+                    <p className="text-sm font-display font-semibold text-foreground">
+                      Almost done — your details
+                    </p>
+                    <p className="text-xs font-body text-muted-foreground">
+                      Create your account to finish your booking. Next you'll verify
+                      your ID with Stripe (you must be 18+).
+                    </p>
+                  </div>
+                )
               ) : (
                 <div className="text-center space-y-2">
                   <ShieldCheck className="w-8 h-8 mx-auto text-muted-foreground" />
@@ -3125,9 +3288,167 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                 </div>
               )}
 
-              {/* Contact fields for Stripe Identity. Phone is optional in the
-                  new flow and prefilled from the authenticated account when
-                  available. */}
+              {/* GUEST (Layer 2): inline "your details" account form. Submit wires
+                  to useInlineSignup (B2); the OTP sub-step swaps this out below. */}
+              {isGuest && !awaitingOtp && !loginMode && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label htmlFor="bm-email-guest" className="text-[10px] font-display font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                      Email <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      id="bm-email-guest"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full bg-background text-foreground border border-border rounded-md px-3 py-2.5 text-sm font-body focus:outline-none focus:border-chrome-dark transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="bm-password-guest" className="text-[10px] font-display font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                      Password <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      id="bm-password-guest"
+                      type="password"
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Create a password"
+                      className="w-full bg-background text-foreground border border-border rounded-md px-3 py-2.5 text-sm font-body focus:outline-none focus:border-chrome-dark transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="bm-name-guest" className="text-[10px] font-display font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                      Full Name <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      id="bm-name-guest"
+                      type="text"
+                      autoComplete="name"
+                      autoCapitalize="words"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="As it appears on your ID"
+                      className="w-full bg-background text-foreground border border-border rounded-md px-3 py-2.5 text-sm font-body focus:outline-none focus:border-chrome-dark transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-display font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                      Date of birth <span className="text-destructive">*</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        aria-label="Birth month"
+                        value={dobMonth}
+                        onChange={(e) => setDobMonth(e.target.value)}
+                        className="w-full bg-background text-foreground border border-border rounded-md px-2 py-2.5 text-sm font-body focus:outline-none focus:border-chrome-dark transition-colors"
+                      >
+                        <option value="">Month</option>
+                        {DOB_MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                      </select>
+                      <select
+                        aria-label="Birth day"
+                        value={dobDay}
+                        onChange={(e) => setDobDay(e.target.value)}
+                        className="w-full bg-background text-foreground border border-border rounded-md px-2 py-2.5 text-sm font-body focus:outline-none focus:border-chrome-dark transition-colors"
+                      >
+                        <option value="">Day</option>
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                      <select
+                        aria-label="Birth year"
+                        value={dobYear}
+                        onChange={(e) => setDobYear(e.target.value)}
+                        className="w-full bg-background text-foreground border border-border rounded-md px-2 py-2.5 text-sm font-body focus:outline-none focus:border-chrome-dark transition-colors"
+                      >
+                        <option value="">Year</option>
+                        {DOB_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-body">
+                      You must be 18+ to book. Stripe Identity confirms this against your ID.
+                    </p>
+                  </div>
+                  <HCaptchaWidget ref={guestCaptchaRef} onVerify={(tok) => setCaptchaToken(tok)} onExpire={() => setCaptchaToken(null)} />
+                </div>
+              )}
+
+              {/* GUEST inline sign-in (Layer 2): existing account → password → Identity. */}
+              {isGuest && loginMode && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label htmlFor="bm-email-login" className="text-[10px] font-display font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                      Email
+                    </label>
+                    <input
+                      id="bm-email-login"
+                      type="email"
+                      value={email}
+                      readOnly
+                      aria-readonly="true"
+                      tabIndex={-1}
+                      className="w-full bg-muted/40 text-muted-foreground border border-border rounded-md px-3 py-2.5 text-sm font-body cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="bm-password-login" className="text-[10px] font-display font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                      Password <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      id="bm-password-login"
+                      type="password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Your password"
+                      className="w-full bg-background text-foreground border border-border rounded-md px-3 py-2.5 text-sm font-body focus:outline-none focus:border-chrome-dark transition-colors"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMode(false); setPassword(""); setCaptchaToken(null); }}
+                    className="text-[11px] font-body text-muted-foreground underline hover:text-foreground transition-colors"
+                  >
+                    Use a different email
+                  </button>
+                </div>
+              )}
+
+              {/* GUEST OTP sub-step (A2): inline 6-digit code → verifyOtp → Identity. */}
+              {isGuest && awaitingOtp && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label htmlFor="bm-otp-guest" className="text-[10px] font-display font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                      Verification code <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      id="bm-otp-guest"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="123456"
+                      className="w-full bg-background text-foreground border border-border rounded-md px-3 py-2.5 text-base font-mono text-center tracking-[0.5em] focus:outline-none focus:border-chrome-dark transition-colors"
+                    />
+                    <p className="text-[10px] text-muted-foreground font-body">Enter the 6-digit code from your email.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleResendOtp()}
+                    className="text-[11px] font-body text-muted-foreground underline hover:text-foreground transition-colors"
+                  >
+                    Didn't get it? Resend code
+                  </button>
+                </div>
+              )}
+
+              {/* SIGNED-IN: read-only confirm fields (unchanged from pre-Layer-2). */}
+              {!isGuest && (
               <div className="space-y-3">
                 <div className="space-y-1">
                   <label htmlFor="bm-name-vs" className="text-[10px] font-display font-semibold uppercase tracking-[0.15em] text-muted-foreground">
@@ -3198,6 +3519,7 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                   <p className="text-[10px] text-muted-foreground font-body">For booking reminders and day-of contact only.</p>
                 </div>
               </div>
+              )}
 
               {draftBookingId && (
                 <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-[10px] font-body text-primary">
@@ -3644,22 +3966,24 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                 disabled={!canProceed() || paying || sending || creatingDraft || startingStripeIdentity}
                 className={cn(
                   "flex-1 py-2.5 rounded-md font-display font-semibold text-xs uppercase tracking-[0.1em] transition-all",
-                  canProceed() && !paying && !creatingDraft && !startingStripeIdentity
+                  canProceed() && !paying && !creatingDraft && !startingStripeIdentity && !inlineSignup.loading
                     ? "chrome-btn"
                     : "bg-muted text-muted-foreground cursor-not-allowed"
                 )}
               >
                 {paying
                   ? "Redirecting to payment..."
-                  : startingStripeIdentity
-                    ? "Opening Stripe Identity..."
-                    : creatingDraft
-                      ? "Reserving your slot..."
-                      : currentStepLabel === "Pay"
-                        ? `Pay ${getAmountDisplay()}`
-                        : currentStepLabel === "VerifyStripe"
-                          ? (isVerificationApproved ? "Continue" : "Verify with Stripe")
-                          : "Continue"}
+                  : inlineSignup.loading
+                    ? (loginMode ? "Signing in..." : awaitingOtp ? "Verifying code..." : "Creating your account...")
+                    : startingStripeIdentity
+                      ? "Opening Stripe Identity..."
+                      : creatingDraft
+                        ? "Reserving your slot..."
+                        : currentStepLabel === "Pay"
+                          ? `Pay ${getAmountDisplay()}`
+                          : currentStepLabel === "VerifyStripe"
+                            ? (isVerificationApproved ? "Continue" : isGuest ? (loginMode ? "Sign in & continue" : awaitingOtp ? "Verify & continue" : "Create account & continue") : "Verify with Stripe")
+                            : "Continue"}
               </button>
             </div>
             {currentStepLabel === "Pay" && !termsAccepted && (
