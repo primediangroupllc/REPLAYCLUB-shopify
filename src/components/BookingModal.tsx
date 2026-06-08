@@ -502,6 +502,18 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
   useEffect(() => {
     if (!open || !draftKey) return;
     if (draftHydrated.current) return;
+    // Resume (post-Stripe Identity): the DB booking is the source of truth. Never
+    // show the "continue your previous booking?" prompt or apply the stale
+    // sessionStorage draft over the resumed state — and clear the leftover draft
+    // so it doesn't keep re-prompting across refreshes. (Bug 3, 2026-06-08.)
+    if (resumeBookingId) {
+      if (draftKey) clearBookingDraft(draftKey);
+      pendingDraftRef.current = null;
+      setResumePromptOpen(false);
+      draftHydrated.current = true;
+      setDraftReady(true);
+      return;
+    }
     const d = readBookingDraft<{
       step?: number; date?: string; time?: string; hours?: number;
       selectedTier?: string; name?: string; email?: string; phone?: string;
@@ -530,7 +542,7 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
     applyDraft(d);
     draftHydrated.current = true;
     setDraftReady(true);
-  }, [open, draftKey]);
+  }, [open, draftKey, resumeBookingId]);
 
   const applyDraft = (d: {
     step?: number; date?: string; time?: string; hours?: number;
