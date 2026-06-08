@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
     .select('id, title, user_id, expires_at')
     .eq('reminder_sent', false)
     .not('expires_at', 'is', null)
+    .neq('uploaded_by_role', 'user') // self-uploaded mixes are permanent — never remind/expire (FOLLOWUP-FIXES #1)
     .gte('expires_at', from.toISOString())
     .lte('expires_at', to.toISOString())
 
