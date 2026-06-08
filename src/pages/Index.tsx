@@ -296,6 +296,9 @@ const Index = () => {
   const [bookingPrefillTime, setBookingPrefillTime] = useState<string | undefined>(undefined);
   const [bookingPrefillTier, setBookingPrefillTier] = useState<string | undefined>(undefined);
   const [bookingPrefillBackdrop, setBookingPrefillBackdrop] = useState<string | undefined>(undefined);
+  // Resume (post-Stripe) seeds name/phone from the booking so the Consent gate passes.
+  const [bookingPrefillName, setBookingPrefillName] = useState<string | undefined>(undefined);
+  const [bookingPrefillPhone, setBookingPrefillPhone] = useState<string | undefined>(undefined);
   // PR 4a — when set, BookingModal is in "resume" mode after a Stripe
   // Identity round-trip. The id flows into create-booking-payment as
   // existingBookingId so we update the existing draft instead of inserting.
@@ -657,6 +660,8 @@ const Index = () => {
           sound: booking.sound || "",
           layout: booking.layout || "",
         });
+        setBookingPrefillName(booking.customer_name || undefined);
+        setBookingPrefillPhone(booking.customer_phone || undefined);
         setCustomizing(false);
         firstStepReportedRef.current = false;
         setActiveBookingSlug(normalizeBookingSlug(match.title));
@@ -754,6 +759,9 @@ const Index = () => {
     setBookingPrefillDate(prefillDate || undefined);
     setBookingPrefillTime(prefillTime || undefined);
     setBookingPrefillBackdrop(params.get("backdrop") || undefined);
+    // Fresh booking (not a resume) — no name/phone prefill; clear any stale resume values.
+    setBookingPrefillName(undefined);
+    setBookingPrefillPhone(undefined);
     if (tierIdxStr !== null && match.tiers && match.tiers.length > 0) {
       const i = parseInt(tierIdxStr, 10);
       setBookingPrefillTier(
@@ -1450,6 +1458,8 @@ const Index = () => {
             initialTime={bookingPrefillTime}
             initialTierLabel={bookingPrefillTier}
             initialBackdrop={bookingPrefillBackdrop}
+            initialName={bookingPrefillName}
+            initialPhone={bookingPrefillPhone}
           />
         </Suspense>
       </ChunkErrorBoundary>

@@ -107,6 +107,11 @@ interface BookingModalProps {
   initialTierLabel?: string;
   initialBackdrop?: string;
   initialHours?: number;
+  // Seeded on resume (post-Stripe) from the existing booking row so the Consent
+  // gate (consentSignature && name.trim()) can pass — bootstrap alone is empty
+  // for a fresh guest. See the resume paths in Index.tsx + ServiceLandingPage.tsx.
+  initialName?: string;
+  initialPhone?: string;
   /**
    * Presentational shell. "modal" (default) renders the flow inside the popup
    * Dialog; "inline" renders it as a plain page section for the inline
@@ -275,7 +280,7 @@ const createUuid = () => {
   return `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSelections, tierFeatures, initialStep, resumeBookingId, onStepChange, initialDate, initialTime, initialTierLabel, initialBackdrop, initialHours, variant = "modal" }: BookingModalProps) => {
+const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSelections, tierFeatures, initialStep, resumeBookingId, onStepChange, initialDate, initialTime, initialTierLabel, initialBackdrop, initialHours, initialName, initialPhone, variant = "modal" }: BookingModalProps) => {
   // Per-room draft storage so partially completed bookings survive close/reopen
   // and deep-linking. Cleared on successful payment redirect or manual reset.
   const draftKey = room?.title ? `booking-draft:${room.title}` : null;
@@ -1319,10 +1324,14 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
     if (typeof initialHours === "number" && initialHours > 0) {
       setHours(initialHours);
     }
-    if (initialDate || initialTime || initialTierLabel || initialBackdrop || initialHours) {
+    // Resume: seed name/phone from the existing booking so the Consent gate
+    // (needs name.trim()) passes without depending on the bootstrap query.
+    if (initialName && !name) setName(initialName);
+    if (initialPhone && !phone) setPhone(initialPhone);
+    if (initialDate || initialTime || initialTierLabel || initialBackdrop || initialHours || initialName || initialPhone) {
       prefillApplied.current = true;
     }
-  }, [open, initialDate, initialTime, initialTierLabel, initialBackdrop, initialHours, room?.tiers]);
+  }, [open, initialDate, initialTime, initialTierLabel, initialBackdrop, initialHours, initialName, initialPhone, room?.tiers]);
   useEffect(() => {
     if (!open || !initialStep) return;
     if (clampRan.current) return;

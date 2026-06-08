@@ -148,6 +148,10 @@ const ServiceLandingPage = ({
   // is the step the inline BookingModal opens on.
   const [resumeBookingId, setResumeBookingId] = useState<string | null>(null);
   const [resumeStep, setResumeStep] = useState<string | undefined>(undefined);
+  // Name/phone from the resumed booking → seed the inline modal so the Consent
+  // gate (needs name.trim()) passes for a fresh guest after the Stripe round-trip.
+  const [resumeName, setResumeName] = useState<string | undefined>(undefined);
+  const [resumePhone, setResumePhone] = useState<string | undefined>(undefined);
   const [searchParams] = useSearchParams();
   // Stage 4: the inline BookingModal renders once the user finishes the picks
   // (or returns mid-flow to resume). Until then only the picker shows.
@@ -218,7 +222,7 @@ const ServiceLandingPage = ({
     (async () => {
       const { data: booking, error } = await supabase
         .from("bookings")
-        .select("id, booking_date, booking_time, tier, backdrop, verification_status")
+        .select("id, booking_date, booking_time, tier, backdrop, verification_status, customer_name, customer_phone")
         .eq("id", resumeId)
         .maybeSingle();
       if (cancelled) return;
@@ -253,6 +257,8 @@ const ServiceLandingPage = ({
       }
       if (booking.backdrop) next.backdrop = booking.backdrop;
       setBookingState(next);
+      if (booking.customer_name) setResumeName(booking.customer_name);
+      if (booking.customer_phone) setResumePhone(booking.customer_phone);
       setInlineFlowStarted(true);
       // Only treat as an approved resume (skip into the back half) when
       // verification really is approved.
@@ -724,6 +730,8 @@ const ServiceLandingPage = ({
               }
               initialBackdrop={bookingState.backdrop}
               initialHours={bookingState.hours}
+              initialName={resumeName}
+              initialPhone={resumePhone}
               initialStep={resumeStep ?? "VerifyStripe"}
               resumeBookingId={resumeBookingId}
             />
