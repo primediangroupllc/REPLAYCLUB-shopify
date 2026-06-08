@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { transcodeWavToMp3 } from "@/lib/transcodeWav";
+import { compressAudioToMp3 } from "@/lib/compressAudio";
 
 // Accepted upload formats (requirement: mp3 / wav / aiff / m4a). Browsers report
 // AIFF/M4A MIME inconsistently, so we gate on file EXTENSION here and let the
@@ -56,6 +58,7 @@ export default function UploadMixDialog({
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState<"converting" | "uploading">("uploading");
 
   const reset = () => {
     setTitle("");
@@ -93,8 +96,10 @@ export default function UploadMixDialog({
     if (!title) setTitle(f.name.replace(/\.[^.]+$/, ""));
   };
 
-  // Mirrors the admin uploader: raw XHR PUT/POST to Storage so we get progress.
-  const uploadWithProgress = (path: string, f: File): Promise<void> =>
+  // Mirrors the admin uploader: raw XHR POST to Storage so we get progress.
+  // Takes a Blob + explicit Content-Type — the body may be a transcoded MP3,
+  // not the original File.
+  const uploadWithProgress = (path: string, body: Blob, contentType: string): Promise<void> =>
     new Promise((resolve, reject) => {
       supabase.auth.getSession().then(({ data: { session } }) => {
         const token = session?.access_token;
@@ -108,15 +113,12 @@ export default function UploadMixDialog({
           else reject(new Error(`Upload failed (${xhr.status} ${xhr.statusText})`));
         });
         xhr.addEventListener("error", () => reject(new Error("Upload network error")));
-        const ext = (f.name.split(".").pop() || "").toLowerCase();
-        const contentType = MIME_BY_EXT[ext] || f.type || "application/octet-stream";
         xhr.open("POST", url);
         xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         xhr.setRequestHeader("x-upsert", "false");
-        // Explicit Content-Type wins over the Blob's type per the XHR spec, so
-        // this guarantees an allowlisted MIME even when file.type is empty.
+        // Explicit Content-Type wins over the Blob's type per the XHR spec.
         xhr.setRequestHeader("Content-Type", contentType);
-        xhr.send(f);
+        xhr.send(body);
       });
     });
 
@@ -128,9 +130,31 @@ export default function UploadMixDialog({
     setUploading(true);
     setProgress(0);
     try {
-      const ext = (file.name.split(".").pop() || "dat").toLowerCase();
+      // Lossless formats (WAV/AIFF) are huge — a 1-hour WAV is ~600 MB, which
+      // times out the single-request upload at the gateway (408) and is costly
+      // to store. Transcode to MP3 in the browser FIRST (reusing the same libs
+      // the admin uploader uses), then upload the much smaller MP3. MP3/M4A are
+      // already compressed, so they pass straight through.
+      let body: Blob = file;
+      let ext = (file.name.split(".").pop() || "dat").toLowerCase();
+
+      if (ext === "wav") {
+        setPhase("converting");
+        setProgress(0);
+        body = await transcodeWavToMp3(file, 192, (pct) => setProgress(pct));
+        ext = "mp3";
+      } else if (ext === "aiff" || ext === "aif") {
+        setPhase("converting");
+        setProgress(0);
+        body = await compressAudioToMp3(file, (pct) => setProgress(pct), 192);
+        ext = "mp3";
+      }
+
+      setPhase("uploading");
+      setProgress(0);
       const storagePath = `${userId}/${Date.now()}.${ext}`;
-      await uploadWithProgress(storagePath, file);
+      const contentType = MIME_BY_EXT[ext] || file.type || "application/octet-stream";
+      await uploadWithProgress(storagePath, body, contentType);
 
       // Owner = user_id (self). Provenance + pending status are also pinned by the
       // enforce_mix_write_rules trigger; we set them explicitly so the insert
@@ -234,7 +258,9 @@ export default function UploadMixDialog({
           {uploading && (
             <div className="space-y-1">
               <Progress value={progress} />
-              <p className="text-[11px] text-muted-foreground font-body text-right">{progress}%</p>
+              <p className="text-[11px] text-muted-foreground font-body text-right">
+                {phase === "converting" ? "Converting…" : "Uploading…"} {progress}%
+              </p>
             </div>
           )}
         </div>
@@ -254,7 +280,7 @@ export default function UploadMixDialog({
             className="gap-2 font-display uppercase tracking-wider text-xs"
           >
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploading ? "Uploading…" : "Upload"}
+            {uploading ? (phase === "converting" ? "Converting…" : "Uploading…") : "Upload"}
           </Button>
         </DialogFooter>
       </DialogContent>

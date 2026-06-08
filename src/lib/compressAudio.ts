@@ -14,6 +14,7 @@ const STREAMING_BITRATE = 128; // kbps — good quality, much smaller than 192/2
 export async function compressAudioToMp3(
   file: File,
   onProgress?: (percent: number) => void,
+  bitrate: number = STREAMING_BITRATE,
 ): Promise<Blob> {
   onProgress?.(0);
 
@@ -36,11 +37,11 @@ export async function compressAudioToMp3(
 
   console.log(
     `[CompressAudio] ${channels}ch ${sampleRate}Hz, ` +
-      `${decoded.length} samples → ${STREAMING_BITRATE}kbps MP3`,
+      `${decoded.length} samples → ${bitrate}kbps MP3`,
   );
 
   // 2. Encode to MP3 in chunks
-  const encoder = new Mp3Encoder(channels, sampleRate, STREAMING_BITRATE);
+  const encoder = new Mp3Encoder(channels, sampleRate, bitrate);
   const mp3Parts: Uint8Array[] = [];
 
   const SAMPLES_PER_CHUNK = 1152 * 64; // ~73k samples per iteration
