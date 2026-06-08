@@ -23,6 +23,10 @@ interface SignupEmailProps {
   siteUrl: string
   recipient: string
   confirmationUrl: string
+  // 6-digit OTP (GoTrue {{ .Token }}). Powers the inline "account at checkout"
+  // step (verifyOtp type:signup). Optional/back-compat: when absent the email
+  // falls back to link-only. The hook (auth-email-hook) always passes it.
+  token?: string
 }
 
 export const SignupEmail = ({
@@ -30,6 +34,7 @@ export const SignupEmail = ({
   siteUrl,
   recipient,
   confirmationUrl,
+  token,
 }: SignupEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
@@ -53,8 +58,15 @@ export const SignupEmail = ({
             <Link href={`mailto:${recipient}`} style={link}>
               {recipient}
             </Link>
-            ) to get started:
+            ) to get started.
           </Text>
+          {token ? (
+            <>
+              <Text style={text}>Enter this code to continue:</Text>
+              <Text style={codeStyle}>{token}</Text>
+              <Text style={text}>Or confirm with this link instead:</Text>
+            </>
+          ) : null}
           <Button style={button} href={confirmationUrl}>
             Verify Email
           </Button>
@@ -79,6 +91,7 @@ const logo = { display: 'block', margin: '0 auto' }
 const content = { padding: '40px', borderLeft: '1px solid #e5e5e5', borderRight: '1px solid #e5e5e5' }
 const h1 = { fontSize: '22px', fontWeight: 'bold' as const, color: '#0a0a0a', margin: '0 0 20px', fontFamily: "'Space Grotesk', Arial, sans-serif" }
 const text = { fontSize: '14px', color: '#555555', lineHeight: '1.6', margin: '0 0 25px' }
+const codeStyle = { fontFamily: 'Courier, monospace', fontSize: '28px', fontWeight: 'bold' as const, color: '#0a0a0a', margin: '0 0 30px', letterSpacing: '4px' }
 const link = { color: '#0a0a0a', textDecoration: 'underline' }
 const button = { backgroundColor: '#0a0a0a', color: '#f2f2f2', fontSize: '14px', fontWeight: '600' as const, borderRadius: '8px', padding: '14px 24px', textDecoration: 'none', textTransform: 'uppercase' as const, letterSpacing: '1.5px', fontFamily: "'Space Grotesk', Arial, sans-serif" }
 const smallText = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
