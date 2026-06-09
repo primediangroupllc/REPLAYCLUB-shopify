@@ -14,7 +14,8 @@ import { usePublicSiteSettings, BOOKING_POLICY_DEFAULTS } from "@/hooks/useSiteS
 
 
 import BookingCountdownBanner from "@/components/BookingCountdownBanner";
-import ReferralProgram from "@/components/ReferralProgram";
+// ReferralProgram intentionally not imported — referral UI hidden for launch
+// (redemption engine not built; see system/TODO.md). Re-add when redemption ships.
 import MixReportCard from "@/components/MixReportCard";
 import SoundDNA from "@/components/SoundDNA";
 import MixLineageTree from "@/components/MixLineageTree";
@@ -2660,8 +2661,12 @@ const Profile = () => {
               {/* Reminder Preferences */}
               <ReminderPreferences userEmail={userEmail} userId={userId} />
 
-              {/* Referral Program */}
-              <ReferralProgram />
+              {/* Referral Program — HIDDEN FOR LAUNCH (2026-06-08): the redemption
+                  engine isn't built (no ?ref capture, no referrals-row write, no
+                  credit granted/applied), so the "we both get $10" card promised
+                  what the backend can't deliver. Schema + auto-generated codes
+                  remain intact; re-mount ReferralProgram when redemption ships +
+                  is verified end-to-end. */}
 
               {/* Account deletion (GDPR) */}
               <AccountDeletionPanel />
