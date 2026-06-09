@@ -648,8 +648,28 @@ const MixTracklist = ({ mixId, initialTracklist, mixTitle, mixDescription, mixAn
 
   const saveTracklist = async () => {
     setSaving(true);
-    await supabase.from("mixes").update({ tracklist: tracks as any }).eq("id", mixId);
+    const { data, error } = await supabase
+      .from("mixes")
+      .update({ tracklist: tracks as any })
+      .eq("id", mixId)
+      .select("tracklist")
+      .maybeSingle();
     setSaving(false);
+    if (error) {
+      toast({ title: "Couldn't save tracklist", description: error.message, variant: "destructive" });
+      return; // keep the editor open so the edit isn't lost
+    }
+    // The DB trigger silently reverts tracklist edits once a mix is finalized
+    // (report_ready / approved / rejected). Verify the write actually persisted.
+    if (!data || JSON.stringify((data as any).tracklist ?? []) !== JSON.stringify(tracks)) {
+      toast({
+        title: "Tracklist can't be edited",
+        description: "This mix is already finalized.",
+        variant: "destructive",
+      });
+      return; // keep the editor open
+    }
+    toast({ title: "Tracklist saved" });
     setEditing(false);
   };
 
