@@ -1,0 +1,123 @@
+// Stage B-core synthetic tests — pure data engine, NO ACRCloud, NO secrets.
+// Run: deno test --allow-net --allow-env --allow-read supabase/functions/
+import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { acrCloudConfigured } from "./acrCloudConfig.ts";
+import {
+  extractPlatformIds,
+  normalizeAcrResult,
+  statusFromConfidence,
+} from "./recognitionNormalize.ts";
+import { mergeSegmentsToTracklist } from "./trackSegmentMerge.ts";
+import { validateTracklistForConfirm } from "./tracklistConfirm.ts";
+import { MOCK_ACR_RESULT } from "./mockAcrCloudPayload.ts";
+
+const ACR_ENV = [
+  "ACRCLOUD_CONSOLE_API_TOKEN",
+  "ACRCLOUD_FS_CONTAINER_ID",
+  "ACRCLOUD_FS_REGION",
+];
+const clearAcrEnv = () => ACR_ENV.forEach((k) => Deno.env.delete(k));
+
+Deno.test("acrCloudConfigured() is false without env, true only when all 3 set", () => {
+  clearAcrEnv();
+  assertEquals(acrCloudConfigured(), false);
+  Deno.env.set("ACRCLOUD_CONSOLE_API_TOKEN", "t");
+  Deno.env.set("ACRCLOUD_FS_CONTAINER_ID", "c");
+  assertEquals(acrCloudConfigured(), false); // partial → still false
+  Deno.env.set("ACRCLOUD_FS_REGION", "us-west-2");
+  assertEquals(acrCloudConfigured(), true);
+  clearAcrEnv();
+});
+
+Deno.test("statusFromConfidence threshold mapping", () => {
+  assertEquals(statusFromConfidence(96), "confirmed");
+  assertEquals(statusFromConfidence(90), "confirmed");
+  assertEquals(statusFromConfidence(89), "likely");
+  assertEquals(statusFromConfidence(70), "likely");
+  assertEquals(statusFromConfidence(69), "possible");
+  assertEquals(statusFromConfidence(40), "possible");
+  assertEquals(statusFromConfidence(39), "unknown");
+  assertEquals(statusFromConfidence(null), "unknown");
+  assertEquals(statusFromConfidence(undefined), "unknown");
+});
+
+Deno.test("normalize: mock payload → segments with correct field mapping + status", () => {
+  const segs = normalizeAcrResult(MOCK_ACR_RESULT, { jobId: "j1", mixId: "m1" });
+  assertEquals(segs.length, 6);
+
+  const first = segs[0];
+  assertEquals(first.title, "Too Cool To Be Careless");
+  assertEquals(first.artist, "PAWSA");
+  assertEquals(first.album, "SOLA");
+  assertEquals(first.isrc, "GB1234567890");
+  assertEquals(first.detected_start_seconds, 0);
+  assertEquals(first.detected_end_seconds, 296); // offset + played_duration
+  assertEquals(first.sample_start_seconds, 0);
+  assertEquals(first.sample_end_seconds, 12); // ms → seconds
+  assertEquals(first.source, "acrcloud");
+  assertEquals(first.source_confidence, 96);
+  assertEquals(first.status, "confirmed");
+
+  assertEquals(segs.map((s) => s.status), [
+    "confirmed",
+    "confirmed",
+    "likely",
+    "possible",
+    "unknown",
+    "unknown",
+  ]);
+
+  // last window had no music → an unknown segment
+  assertEquals(segs[5].source, "unknown");
+  assertEquals(segs[5].title, null);
+});
+
+Deno.test("platform_ids mapping handles {track:{id}} and {id} nestings; null when absent", () => {
+  const segs = normalizeAcrResult(MOCK_ACR_RESULT, { jobId: "j1", mixId: "m1" });
+  assertEquals((segs[0].platform_ids as Record<string, unknown>)?.spotify, "spfy_pawsa");
+  assertEquals((segs[0].platform_ids as Record<string, unknown>)?.apple_music, "am_pawsa");
+  assertEquals((segs[2].platform_ids as Record<string, unknown>)?.spotify, "spfy_toman");
+  assertEquals(segs[3].platform_ids, null); // no external_metadata
+
+  // direct helper checks
+  assertEquals(extractPlatformIds(null), null);
+  assertEquals(extractPlatformIds({}), null);
+  assertEquals(extractPlatformIds({ deezer: { id: "dz1" } })?.deezer, "dz1");
+});
+
+Deno.test("merge: collapses repeated track + builds confirmed_tracklist shape", () => {
+  const segs = normalizeAcrResult(MOCK_ACR_RESULT, { jobId: "j1", mixId: "m1" });
+  const tl = mergeSegmentsToTracklist(segs);
+
+  // 6 segments → PAWSA (windows 1+2) merges → 5 tracklist entries
+  assertEquals(tl.length, 5);
+
+  // PAWSA merged: spans 0 → 356 (296 + 60), keeps the top confidence 96
+  assertEquals(tl[0].title, "Too Cool To Be Careless");
+  assertEquals(tl[0].start_seconds, 0);
+  assertEquals(tl[0].end_seconds, 356);
+  assertEquals(tl[0].confidence, 96);
+
+  // positions sequential, source auto, enrichment null, metadata carries isrc/platform_ids
+  assertEquals(tl.map((t) => t.position), [1, 2, 3, 4, 5]);
+  assertEquals(tl[0].source, "auto");
+  assertEquals(tl[0].bpm, null);
+  assertEquals(tl[0].musical_key, null);
+  assertEquals((tl[0].metadata as Record<string, unknown>)?.isrc, "GB1234567890");
+  assert((tl[0].metadata as Record<string, unknown>)?.platform_ids != null);
+});
+
+Deno.test("unknown / low-confidence: <40 score AND no-match window both → unknown", () => {
+  const segs = normalizeAcrResult(MOCK_ACR_RESULT, { jobId: "j1", mixId: "m1" });
+  const unknowns = segs.filter((s) => s.status === "unknown");
+  assertEquals(unknowns.length, 2); // the score-31 match + the empty window
+});
+
+Deno.test("validateTracklistForConfirm flags empty + out-of-sequence + missing title", () => {
+  assertEquals(validateTracklistForConfirm([]).length, 1); // empty
+  const segs = normalizeAcrResult(MOCK_ACR_RESULT, { jobId: "j1", mixId: "m1" });
+  const tl = mergeSegmentsToTracklist(segs);
+  // the no-match (null title, source 'auto') row should be flagged
+  const errs = validateTracklistForConfirm(tl);
+  assert(errs.some((e) => e.includes("no title/artist")));
+});
