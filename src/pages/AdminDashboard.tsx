@@ -756,6 +756,30 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteMix = async (mixId: string) => {
+    // Storage-first: remove the mix's audio/cover/streaming objects from the
+    // (private) mixes bucket BEFORE the DB row, so a storage failure leaves the row
+    // intact + retryable (no orphaned files). Admin has the storage DELETE policy.
+    const toPath = (v?: string | null): string | null => {
+      if (!v) return null;
+      if (!v.includes("://")) return v.replace(/^\/+/, "");        // already a bucket path
+      const m = v.split("?")[0].match(/\/mixes\/(.+)$/);           // defensive: full URL → path
+      return m ? decodeURIComponent(m[1]) : null;
+    };
+    const { data: row } = await supabase
+      .from("mixes")
+      .select("file_url, cover_art_url, streaming_url")
+      .eq("id", mixId)
+      .maybeSingle();
+    const paths = [row?.file_url, row?.cover_art_url, row?.streaming_url]
+      .map(toPath)
+      .filter((p): p is string => !!p);
+    if (paths.length) {
+      const { error: rmErr } = await supabase.storage.from("mixes").remove(paths);
+      if (rmErr) {
+        toast({ title: "Delete failed", description: `Couldn't remove storage files (${rmErr.message}). Mix kept — try again.`, variant: "destructive" });
+        return; // leave the row — retryable, no orphan
+      }
+    }
     const { error } = await supabase.from("mixes").delete().eq("id", mixId);
     if (error) {
       toast({ title: "Delete failed", description: error.message, variant: "destructive" });

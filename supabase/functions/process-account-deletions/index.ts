@@ -28,6 +28,24 @@ Deno.serve(async (req) => {
         user_name: "Deleted user", user_email: placeholderEmail,
       }).ilike("user_email", req.user_email);
       // Delete personal data
+      // Remove the user's mix media from the (private) mixes bucket BEFORE deleting
+      // the rows. Best-effort: never block account deletion on a storage failure.
+      const toPath = (v?: string | null): string | null => {
+        if (!v) return null;
+        if (!v.includes("://")) return v.replace(/^\/+/, "");
+        const m = v.split("?")[0].match(/\/mixes\/(.+)$/);
+        return m ? decodeURIComponent(m[1]) : null;
+      };
+      const { data: userMixes } = await supabase
+        .from("mixes").select("file_url, cover_art_url, streaming_url").eq("user_id", req.user_id);
+      const mixPaths = (userMixes ?? [])
+        .flatMap((m: any) => [m.file_url, m.cover_art_url, m.streaming_url])
+        .map(toPath)
+        .filter((p: string | null): p is string => !!p);
+      if (mixPaths.length) {
+        const { error: rmErr } = await supabase.storage.from("mixes").remove(mixPaths);
+        if (rmErr) console.error("[account-deletion] mix storage cleanup failed (continuing):", rmErr.message);
+      }
       await supabase.from("mixes").delete().eq("user_id", req.user_id);
       await supabase.from("notifications").delete().ilike("user_email", req.user_email);
       await supabase.from("reminder_preferences").delete().ilike("user_email", req.user_email);
