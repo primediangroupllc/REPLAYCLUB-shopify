@@ -507,6 +507,29 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
     // sessionStorage draft over the resumed state — and clear the leftover draft
     // so it doesn't keep re-prompting across refreshes. (Bug 3, 2026-06-08.)
     if (resumeBookingId) {
+      // Restore the PRICE INPUTS from the sessionStorage draft BEFORE clearing it,
+      // so the Pay step's getTotalWithFee() (selectedTier × hours) isn't 0 on resume.
+      // Regression fix for Bug 3 (e158b5d): that fix skipped the draft restore when it
+      // removed the resume prompt — without these inputs the Pay step shows $0.00 and
+      // the invalid-amount guard (handlePayment) blocks payment. Bug 3's prompt-
+      // suppression + draft-clear below stay intact, so stale state still doesn't
+      // bleed into the next booking.
+      const resumeDraft = readBookingDraft<{
+        date?: string; time?: string; hours?: number;
+        selectedTier?: string; selectedBackdrop?: string | null;
+      }>(draftKey);
+      if (resumeDraft) {
+        if (resumeDraft.selectedTier && !selectedTier) setSelectedTier(resumeDraft.selectedTier);
+        if (typeof resumeDraft.hours === "number" && resumeDraft.hours > 0) setHours(resumeDraft.hours);
+        if (resumeDraft.date && !date) {
+          const parsed = parseStoredBookingDate(resumeDraft.date);
+          if (parsed) setDate(parsed);
+        }
+        if (resumeDraft.time && !time) setTime(resumeDraft.time);
+        if (resumeDraft.selectedBackdrop !== undefined && !selectedBackdrop) {
+          setSelectedBackdrop(resumeDraft.selectedBackdrop);
+        }
+      }
       if (draftKey) clearBookingDraft(draftKey);
       pendingDraftRef.current = null;
       setResumePromptOpen(false);
