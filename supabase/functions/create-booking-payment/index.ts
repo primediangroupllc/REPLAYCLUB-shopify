@@ -904,8 +904,11 @@ serve(async (req) => {
       ],
       mode: "payment",
       // Force 3D Secure on high-value bookings (> $200) for fraud protection.
-      payment_intent_data: finalAmount > 20000
-        ? { payment_method_options: { card: { request_three_d_secure: "any" } } }
+      // NOTE: `payment_method_options` is a TOP-LEVEL Checkout Session param — it is
+      // NOT valid nested inside `payment_intent_data` (Stripe rejects it as an unknown
+      // parameter, which silently broke every >$200 booking). Keep it top-level.
+      payment_method_options: finalAmount > 20000
+        ? { card: { request_three_d_secure: "any" } }
         : undefined,
       success_url: `${req.headers.get("origin")}/booking-success?session_id={CHECKOUT_SESSION_ID}&booking_id=${booking.id}`,
       // PR — Stripe-back handling. When the user hits back/X on the hosted
