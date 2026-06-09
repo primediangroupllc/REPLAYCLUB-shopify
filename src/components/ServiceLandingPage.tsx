@@ -436,6 +436,13 @@ const ServiceLandingPage = ({
         </Link>
       </nav>
 
+      {/* Option A (2026-06-09): during the inline back-half (inlineFlowStarted),
+          hide the hero / backdrops / picker so the active modal step (consent/pay)
+          lands at the top of the page — the inline modal renders its own booking
+          summary, so no context is lost. The full landing layout returns whenever
+          the inline flow hasn't started. */}
+      {!inlineFlowStarted && (
+      <>
       {useDbLayout ? (
         <>
           {/* Top spacer so content clears the fixed nav */}
@@ -699,6 +706,8 @@ const ServiceLandingPage = ({
             />
           </div>
         </section>
+      )}
+      </>
       )}
 
       {/* Stage 2 scaffolding (DORMANT): when `inlineFullFlow` is set, the full

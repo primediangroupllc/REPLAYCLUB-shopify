@@ -3420,6 +3420,20 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                     </p>
                   </div>
                   <HCaptchaWidget ref={guestCaptchaRef} onVerify={(tok) => setCaptchaToken(tok)} onExpire={() => setCaptchaToken(null)} />
+                  {/* Returning user? Switch to sign-in BEFORE submitting, instead of
+                      only discovering it after email_exists detection on "Create account
+                      & continue" (submit-detection stays as the safety net). Clears the
+                      captcha so login mode requires its own fresh solve. */}
+                  <p className="text-center text-[11px] font-body text-muted-foreground">
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => { setLoginMode(true); setCaptchaToken(null); }}
+                      className="text-foreground underline underline-offset-2 hover:text-primary transition-colors font-semibold"
+                    >
+                      Sign in
+                    </button>
+                  </p>
                 </div>
               )}
 
