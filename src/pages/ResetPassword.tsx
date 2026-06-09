@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/logo.png";
+import type HCaptcha from "@hcaptcha/react-hcaptcha";
+import HCaptchaWidget from "@/components/HCaptchaWidget";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -18,6 +20,8 @@ const ResetPassword = () => {
   const [tokenHash, setTokenHash] = useState<string | null>(null);
   const [resendEmail, setResendEmail] = useState("");
   const [resending, setResending] = useState(false);
+  const [resendCaptcha, setResendCaptcha] = useState<string | null>(null);
+  const resendCaptchaRef = useRef<HCaptcha>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -164,10 +168,15 @@ const ResetPassword = () => {
       toast({ title: "Error", description: "Please enter your email address.", variant: "destructive" });
       return;
     }
+    if (!resendCaptcha) {
+      toast({ title: "Verify you're human", description: "Please complete the captcha.", variant: "destructive" });
+      return;
+    }
     setResending(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(resendEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
+        captchaToken: resendCaptcha,
       });
       if (error) throw error;
       toast({ title: "Check your email", description: "A new reset link has been sent." });
@@ -175,6 +184,9 @@ const ResetPassword = () => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setResending(false);
+      // hCaptcha tokens are single-use — clear + reset so a retry gets a fresh one.
+      setResendCaptcha(null);
+      resendCaptchaRef.current?.resetCaptcha();
     }
   };
 
@@ -283,9 +295,14 @@ const ResetPassword = () => {
               placeholder="you@example.com"
               className="bg-card border-border text-foreground"
             />
+            <HCaptchaWidget
+              ref={resendCaptchaRef}
+              onVerify={(token) => setResendCaptcha(token)}
+              onExpire={() => setResendCaptcha(null)}
+            />
             <button
               onClick={handleResendReset}
-              disabled={resending}
+              disabled={resending || !resendCaptcha}
               className="w-full chrome-btn font-display font-semibold text-sm uppercase tracking-[0.15em] px-6 py-3 rounded-md transition-all disabled:opacity-50"
             >
               {resending ? "..." : "Send New Reset Link"}

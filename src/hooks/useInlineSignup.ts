@@ -142,14 +142,15 @@ export function useInlineSignup() {
 
   // Inline sign-in for the "email already exists" path: the guest entered an
   // email that already has an account, so sign them in (password) and continue
-  // the booking. No captcha needed — login isn't server-captcha-gated
-  // (security_captcha_enabled=false) and the details-step token was consumed.
+  // the booking. Requires a FRESH captcha token: the details-step token was
+  // consumed by the signUp attempt, and login IS server-captcha-gated once
+  // security_captcha_enabled=true. The caller re-shows the captcha in login mode.
   const signIn = useCallback(
-    async ({ email, password }: { email: string; password: string }): Promise<InlineVerifyResult> => {
+    async ({ email, password, captchaToken }: { email: string; password: string; captchaToken: string }): Promise<InlineVerifyResult> => {
       setLoading(true);
       setError(null);
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
         if (error) {
           setError(error.message);
           return { status: "error", message: error.message };

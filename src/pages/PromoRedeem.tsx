@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,8 @@ import { Gift, CheckCircle, AlertCircle, CalendarIcon, Clock, Palette, FileSigna
 import SignaturePad from "@/components/SignaturePad";
 import StudioRepSignature from "@/components/StudioRepSignature";
 import { dataUrlToBlob } from "@/lib/utils";
+import type HCaptcha from "@hcaptcha/react-hcaptcha";
+import HCaptchaWidget from "@/components/HCaptchaWidget";
 
 const LAYOUT_OPTIONS = [
   { id: "classic", label: "Classic Studio", desc: "Traditional recording layout" },
@@ -69,6 +71,8 @@ const PromoRedeem = () => {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<HCaptcha>(null);
 
   // Style selections
   const [selectedLayout, setSelectedLayout] = useState("");
@@ -146,13 +150,17 @@ const PromoRedeem = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+      toast({ title: "Verify you're human", description: "Please complete the captcha.", variant: "destructive" });
+      return;
+    }
     setAuthLoading(true);
     try {
       if (authMode === "signup") {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { display_name: name } },
+          options: { data: { display_name: name }, captchaToken },
         });
         if (error) throw error;
         toast({
@@ -161,7 +169,11 @@ const PromoRedeem = () => {
         });
         setAuthMode("login");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+          options: { captchaToken },
+        });
         if (error) throw error;
         toast({ title: "Signed in!" });
       }
@@ -169,6 +181,10 @@ const PromoRedeem = () => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAuthLoading(false);
+      // hCaptcha tokens are single-use — reset so the next attempt (e.g. the
+      // sign-in that follows a successful signup) gets a fresh one.
+      setCaptchaToken(null);
+      captchaRef.current?.resetCaptcha();
     }
   };
 
@@ -659,9 +675,14 @@ const PromoRedeem = () => {
                   minLength={6}
                 />
               </div>
+              <HCaptchaWidget
+                ref={captchaRef}
+                onVerify={(token) => setCaptchaToken(token)}
+                onExpire={() => setCaptchaToken(null)}
+              />
               <button
                 type="submit"
-                disabled={authLoading}
+                disabled={authLoading || !captchaToken}
                 className="w-full chrome-btn font-display font-semibold text-sm uppercase tracking-[0.15em] px-6 py-3 rounded-md disabled:opacity-50"
               >
                 {authLoading ? "..." : authMode === "signup" ? "Create Account" : "Sign In"}

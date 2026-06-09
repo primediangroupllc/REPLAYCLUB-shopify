@@ -1841,7 +1841,7 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
         // account & continue" enables.
         if (isGuest) {
           // Inline sign-in sub-step: email is already valid; need a password.
-          if (loginMode) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && password.length >= 6;
+          if (loginMode) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && password.length >= 6 && !!captchaToken;
           // OTP sub-step: gate on a complete 6-digit code.
           if (awaitingOtp) return otpCode.trim().length === 6;
           return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
@@ -2213,12 +2213,15 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
 
   // GUEST inline sign-in sub-step: existing account → sign in → launch Identity.
   const handleInlineLoginAndStartIdentity = async () => {
-    const result = await inlineSignup.signIn({ email: email.trim(), password });
+    const result = await inlineSignup.signIn({ email: email.trim(), password, captchaToken: captchaToken ?? "" });
     if (result.status === "session") {
       setLoginMode(false);
       await handleStartStripeIdentity();
       return;
     }
+    // Failed login consumed the single-use captcha token — reset for a retry.
+    guestCaptchaRef.current?.resetCaptcha();
+    setCaptchaToken(null);
     toast.error(result.message || "Could not sign in. Please check your password.");
   };
 
@@ -3428,6 +3431,14 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                       className="w-full bg-background text-foreground border border-border rounded-md px-3 py-2.5 text-sm font-body focus:outline-none focus:border-chrome-dark transition-colors"
                     />
                   </div>
+                  {/* Fresh captcha required for the sign-in: the details-step token
+                      was consumed by the signUp attempt, and login is server-gated
+                      once security_captcha_enabled=true. */}
+                  <HCaptchaWidget
+                    ref={guestCaptchaRef}
+                    onVerify={(tok) => setCaptchaToken(tok)}
+                    onExpire={() => setCaptchaToken(null)}
+                  />
                   <button
                     type="button"
                     onClick={() => { setLoginMode(false); setPassword(""); setCaptchaToken(null); }}
