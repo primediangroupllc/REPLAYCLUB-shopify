@@ -3447,11 +3447,11 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
                     <input
                       id="bm-email-login"
                       type="email"
+                      autoComplete="email"
                       value={email}
-                      readOnly
-                      aria-readonly="true"
-                      tabIndex={-1}
-                      className="w-full bg-muted/40 text-muted-foreground border border-border rounded-md px-3 py-2.5 text-sm font-body cursor-not-allowed"
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full bg-background text-foreground border border-border rounded-md px-3 py-2.5 text-sm font-body focus:outline-none focus:border-chrome-dark transition-colors"
                     />
                   </div>
                   <div className="space-y-1">
