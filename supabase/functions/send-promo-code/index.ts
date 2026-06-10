@@ -123,12 +123,12 @@ Deno.serve(async (req) => {
     const fromHeader = await resolveFromHeader(
       "default",
       "Replay Club",
-      "notify.www.replayclub.io",
+      "replayclub.io",
     );
     const emailPayload = {
       to: recipient_email,
       from: fromHeader,
-      sender_domain: "notify.www.replayclub.io",
+      sender_domain: "replayclub.io",
       reply_to: "replayclubrecords@gmail.com",
       subject: `Your Free Session Code — Replay Club`,
       purpose: "transactional",

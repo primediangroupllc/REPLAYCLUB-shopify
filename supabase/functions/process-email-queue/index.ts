@@ -349,10 +349,12 @@ Deno.serve(async (req) => {
           )
         }
 
-        // 403 means emails are disabled for this project — retrying won't help.
-        // Move straight to DLQ and stop processing the rest of the batch.
+        // 403 is non-retryable (unverified from-domain, suspended account,
+        // restricted API key, …) — move straight to DLQ and stop the batch.
+        // Surface Resend's actual error message as the DLQ reason; a generic
+        // label here masked the real cause of the 2026-06-10 outage.
         if (isForbidden(error)) {
-          await moveToDlq(supabase, queue, msg, 'Emails disabled for this project')
+          await moveToDlq(supabase, queue, msg, errorMsg.slice(0, 1000))
           return new Response(
             JSON.stringify({ processed: totalProcessed, stopped: 'emails_disabled' }),
             { headers: { 'Content-Type': 'application/json' } }

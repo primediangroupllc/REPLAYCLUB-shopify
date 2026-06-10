@@ -387,7 +387,7 @@ serve(async (req) => {
     const fromHeader = await resolveFromHeader(
       "booking_confirmation",
       "Replay Club",
-      "notify.www.replayclub.io",
+      "replayclub.io",
       "events",
     );
     const { error: enqueueErr } = await supabase.rpc("enqueue_email", {
@@ -396,7 +396,7 @@ serve(async (req) => {
         message_id: messageId,
         to: rsvp.user_email,
         from: fromHeader,
-        sender_domain: "notify.www.replayclub.io",
+        sender_domain: "replayclub.io",
         subject: subjectByMode[mode],
         html,
         text,

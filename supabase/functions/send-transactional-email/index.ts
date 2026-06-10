@@ -4,17 +4,14 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { TEMPLATES } from '../_shared/transactional-email-templates/registry.ts'
 import { resolveFromHeader, isEmailTypeEnabled } from '../_shared/site-settings.ts'
 
-// Configuration baked in at scaffold time — do NOT change these manually.
-// To update, re-run the email domain setup flow.
 const SITE_NAME = "Replay Club"
-// SENDER_DOMAIN is the verified sender subdomain FQDN (e.g., "notify.example.com").
-// It MUST match the subdomain delegated to Lovable's nameservers — never the root domain.
-// The email API looks up this exact domain; a mismatch causes "No email domain record found".
-const SENDER_DOMAIN = "notify.www.replayclub.io"
-// FROM_DOMAIN is the domain shown in the From: header (e.g., "example.com").
-// When display_from_root is enabled, this can be the root domain for cleaner branding,
-// even though actual sending uses the subdomain above.
-const FROM_DOMAIN = "notify.www.replayclub.io"
+// SENDER_DOMAIN / FROM_DOMAIN MUST be the domain verified in the Resend
+// account (DKIM at resend._domainkey.<domain>, SPF/MX at send.<domain>).
+// Resend 403s any from-address on an unverified domain — exact match only,
+// root verification does not cover subdomains. The old Lovable scaffold value
+// (notify.www.replayclub.io) was never verified in Resend.
+const SENDER_DOMAIN = "replayclub.io"
+const FROM_DOMAIN = "replayclub.io"
 
 /**
  * Map a template name to one of the email-type buckets stored in
