@@ -4020,7 +4020,11 @@ const BookingModal = ({ open, onOpenChange, room, selectedEquipment, sessionSele
 
         {/* Navigation buttons — sticky on mobile so the keyboard never hides them. */}
         {currentStepLabel !== "Verify" && (
-          <div className="sticky bottom-0 left-0 right-0 -mx-4 px-4 pt-3 pb-[env(safe-area-inset-bottom)] mt-4 bg-gradient-to-t from-background via-background to-background/95 border-t border-border/40">
+          // pb floor: env(safe-area-inset-bottom) is 0 on desktop and on
+          // phones without a home-indicator inset, leaving the buttons flush
+          // against the bar's edge while it's stuck mid-scroll. max() keeps
+          // the larger inset where one exists.
+          <div className="sticky bottom-0 left-0 right-0 -mx-4 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] mt-4 bg-gradient-to-t from-background via-background to-background/95 border-t border-border/40">
             <div className="flex gap-3">
               {step > 0 && (
                 <button
