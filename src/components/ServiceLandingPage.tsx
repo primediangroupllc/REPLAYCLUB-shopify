@@ -701,7 +701,7 @@ const ServiceLandingPage = ({
           here. Continue hands off to the modal at the Customize step with
           all picks prefilled. */}
       {useInlineForm && (
-        <section className="px-6 pb-6" ref={inlineFormRef}>
+        <section className="px-3 sm:px-6 pb-6" ref={inlineFormRef}>
           <div className="max-w-5xl mx-auto">
             <InlineBookingForm
               ref={inlineFormHandleRef}

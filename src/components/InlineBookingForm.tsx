@@ -185,6 +185,25 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
     el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  // Auto-advance nudge after a pick (date→time, time→tier). On phones the
+  // picker is a single column and the next field already sits just under the
+  // thumb, so a programmatic scrollIntoView({block:"center"}) yanks the
+  // calendar out of view and — on iOS Safari — reads as a disorienting
+  // zoom/reflow (bug A0). Skip it under `sm`; keep the guided scroll on
+  // tablet/desktop. NOTE: the validation scroll (handleContinue) is
+  // intentionally NOT routed through here — jumping to a missing field on
+  // Continue is helpful on every viewport. Don't "simplify" this back to a
+  // plain scrollIntoView.
+  const advanceScrollTo = (el: HTMLElement | null) => {
+    if (!el) return;
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 639px)").matches
+    )
+      return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
   const selectedTier = value.tierIdx !== undefined ? tiers[value.tierIdx] : undefined;
   const priceCents = selectedTier
     ? parseHourlyCents(selectedTier.price) * value.hours +
@@ -245,7 +264,12 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
   useImperativeHandle(ref, () => ({ continue: handleContinue }), [handleContinue]);
 
   return (
-    <div className="card-premium p-6 sm:p-8">
+    // overflow-x-clip (mobile/tablet only) contains any child transform/ring
+    // so a selected button's scale can't leak a horizontal sliver onto the
+    // document (bug A0, effect 2). `clip` — not `hidden` — so it never becomes
+    // a scroll container; reset to `visible` at lg so the desktop sticky aside
+    // (lg:sticky below) is unaffected.
+    <div className="card-premium p-4 sm:p-8 overflow-x-clip lg:overflow-x-visible">
       <div className="pb-4 mb-6 border-b border-border/30">
         <h3 className="font-display text-lg sm:text-xl font-bold chrome-text uppercase tracking-[0.15em]">
           Book your session
@@ -269,13 +293,9 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
             selected={value.date}
             onSelect={(d) => {
               onChange({ ...value, date: d, time: undefined });
-              // Guide the user to the next step.
-              requestAnimationFrame(() =>
-                timeRef.current?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "center",
-                }),
-              );
+              // Guide the user to the next step (desktop/tablet only — see
+              // advanceScrollTo; skipping under sm prevents the A0 yank-scroll).
+              requestAnimationFrame(() => advanceScrollTo(timeRef.current));
             }}
             disabled={(d) => {
               if (d < todayMidnight()) return true;
@@ -283,13 +303,23 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
               max.setDate(max.getDate() + Math.max(0, lookaheadDays));
               return d > max;
             }}
-            className="p-3 pointer-events-auto"
+            // Fluid on mobile (fill the card down to 320px so the 7-col grid
+            // never clips — bug A1), fixed 36px from lg up to preserve the
+            // verified desktop layout + the [auto,1fr] column sizing.
+            className="p-1 sm:p-3 pointer-events-auto w-full lg:w-auto"
             classNames={{
+              months: "w-full lg:w-auto flex flex-col",
+              month: "w-full lg:w-auto space-y-4",
+              table: "w-full border-collapse",
+              head_row: "flex w-full",
               head_cell:
-                "text-zinc-300 rounded-md w-9 font-medium text-[0.8rem] uppercase tracking-wider",
+                "flex-1 lg:flex-none lg:w-9 text-zinc-300 rounded-md font-medium text-[0.8rem] uppercase tracking-wider",
+              row: "flex w-full mt-1.5",
+              cell:
+                "flex-1 lg:flex-none lg:w-9 h-9 p-0 relative text-center focus-within:relative focus-within:z-20",
               caption_label: "text-sm font-medium text-zinc-100",
               day: cn(
-                "h-9 w-9 p-0 font-medium rounded-md inline-flex items-center justify-center text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white aria-selected:opacity-100",
+                "w-full h-9 lg:w-9 p-0 font-medium rounded-md inline-flex items-center justify-center text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white aria-selected:opacity-100",
               ),
               day_selected:
                 "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground ring-1 ring-zinc-300",
@@ -328,14 +358,11 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
                       onClick={() => {
                         if (isTaken) return;
                         onChange({ ...value, time: slot });
-                        // Guide to the next field.
-                        requestAnimationFrame(() => {
-                          const next = hasTiers ? tierRef.current : null;
-                          next?.scrollIntoView({
-                            behavior: "smooth",
-                            block: "center",
-                          });
-                        });
+                        // Guide to the next field (desktop/tablet only — see
+                        // advanceScrollTo; the under-sm skip is the core A0 fix).
+                        requestAnimationFrame(() =>
+                          advanceScrollTo(hasTiers ? tierRef.current : null),
+                        );
                       }}
                       disabled={isTaken}
                       title={
@@ -350,7 +377,7 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
                         isTaken
                           ? "border-border/40 bg-muted/30 text-muted-foreground/50 line-through cursor-not-allowed"
                           : value.time === slot
-                            ? "chrome-btn border-transparent scale-[1.04] ring-2 ring-primary/40 shadow-md shadow-primary/20"
+                            ? "chrome-btn border-transparent scale-[1.02] ring-2 ring-primary/40 shadow-md shadow-primary/20"
                             : "chrome-btn-outline",
                       )}
                     >
