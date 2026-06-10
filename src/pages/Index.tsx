@@ -16,7 +16,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import StickyMobileCTA from "@/components/StickyMobileCTA";
 import SiteFooter from "@/components/SiteFooter";
 import SeoHead from "@/components/SeoHead";
-import YouTubeFacade from "@/components/YouTubeFacade";
+import MixesSection from "@/components/MixesSection";
 import { useFirstImagesByType } from "@/hooks/useBookingTabImages";
 import { useBookingTabsMeta } from "@/hooks/useBookingTabsMeta";
 import { useHomeCardsCustom } from "@/hooks/useHomeCardsCustom";
@@ -303,7 +303,6 @@ const Index = () => {
   // Identity round-trip. The id flows into create-booking-payment as
   // existingBookingId so we update the existing draft instead of inserting.
   const [resumeBookingId, setResumeBookingId] = useState<string | null>(null);
-  const [latestVideoId, setLatestVideoId] = useState<string>("RTyftA9g5vI");
   // PR — Booking-modal URL sync. We mirror the active step into the URL so
   // browser back/forward (and iOS swipe-back) navigate between modal steps
   // instead of escaping the modal entirely. Tracks the slug actively in the
@@ -319,18 +318,6 @@ const Index = () => {
     getProducts(10)
       .then((p) => console.log("Shopify products:", p))
       .catch((e) => console.error("Shopify products error:", e));
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    supabase.functions
-      .invoke("get-latest-youtube-video")
-      .then(({ data, error }) => {
-        if (cancelled || error) return;
-        if (data?.video_id) setLatestVideoId(data.video_id);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
   }, []);
   const [selectedRoom, setSelectedRoom] = useState<typeof rooms[0] | null>(null);
   // Admin-editable tier features pulled from studio_configurations.tiers.
@@ -1352,24 +1339,8 @@ const Index = () => {
       )}
       <div ref={!tabActivated ? roomsRef : undefined} />
 
-      {/* Latest Mix */}
-      <section className="py-16 px-4 border-t border-border">
-        <div className="max-w-2xl mx-auto text-center space-y-6">
-          <h2 className="font-display text-xl font-bold tracking-tight text-foreground">Latest Mix</h2>
-          <p className="text-muted-foreground font-body text-sm">
-            Fresh from the Replay Club booth — watch our latest session.
-          </p>
-          <YouTubeFacade videoId={latestVideoId} title="Replay Club — Latest Mix" />
-          <a
-            href={`https://www.youtube.com/${siteSettings.youtube_channel_handle}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 chrome-btn-outline font-display font-semibold text-xs uppercase tracking-[0.15em] px-6 py-3 rounded-md transition-all"
-          >
-            Subscribe on YouTube
-          </a>
-        </div>
-      </section>
+      {/* Mixes — the Deck (upload pitch + one real example artifact) */}
+      <MixesSection isLoggedIn={isLoggedIn} youtubeHandle={siteSettings.youtube_channel_handle} />
 
       {/* Join the Roster CTA */}
       <section className="py-12 px-4 border-t border-border">
