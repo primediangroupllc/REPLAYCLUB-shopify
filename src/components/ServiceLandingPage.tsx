@@ -184,13 +184,25 @@ const ServiceLandingPage = ({
     });
   };
   // Stage 4: the inline form's "Continue" hands off here — reveal the in-page
-  // BookingModal (verify → consent → pay) and scroll to it.
+  // BookingModal (verify → consent → pay). The inlineFlowStarted effect below
+  // handles the scroll once the collapsed layout has committed.
   const handleInlineContinue = () => {
     setInlineFlowStarted(true);
+  };
+  // Scroll to the inline modal AFTER the Option A collapse commits. Both the
+  // forward flow (Continue) and the Stripe Identity resume set
+  // inlineFlowStarted, which unmounts the hero/backdrops/picker — so a scroll
+  // scheduled alongside the setState races the unmount (the resume path used
+  // to target inlineFormRef, whose ref is nulled by the collapse → silent
+  // no-op → the viewport just stayed wherever the SPA navigation left it).
+  // An effect keyed on inlineFlowStarted runs post-commit, when the modal is
+  // guaranteed mounted in its final, collapsed position.
+  useEffect(() => {
+    if (!inlineFlowStarted) return;
     requestAnimationFrame(() => {
       inlineModalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-  };
+  }, [inlineFlowStarted]);
   // Tier strings for the inline BookingModal. MUST match room.tiers exactly —
   // the modal resolves initialTierLabel via room.tiers.includes(), so both
   // sides have to use the identical "price — label" string.
@@ -297,9 +309,8 @@ const ServiceLandingPage = ({
         "",
         `${window.location.pathname}${stripped.toString() ? `?${stripped}` : ""}`,
       );
-      requestAnimationFrame(() => {
-        inlineFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      // Scroll is handled by the inlineFlowStarted effect above — it must run
+      // after the collapse commits, not from inside this async callback.
     })();
     return () => {
       cancelled = true;
@@ -419,8 +430,9 @@ const ServiceLandingPage = ({
       className={cn(
         "min-h-screen bg-background text-foreground",
         // Bottom padding on mobile so the sticky CTA bar doesn't hide
-        // the last bit of content (FAQ / location section).
-        useInlineForm && "pb-24 md:pb-0",
+        // the last bit of content (FAQ / location section). The bar (and
+        // this clearance) goes away with the inline back-half collapse.
+        useInlineForm && !inlineFlowStarted && "pb-24 md:pb-0",
       )}
     >
       {/* Simple nav — logo centered, no flanking text. Logo click goes home,
@@ -717,7 +729,10 @@ const ServiceLandingPage = ({
           code in production until Stage 4 flips DJ. The room/initial* mapping
           is finalized when DJ is flipped. */}
       {useInlineForm && inlineFullFlow && inlineFlowStarted && (
-        <div className="px-6 pb-10" ref={inlineModalRef}>
+        // pt-24 clears the fixed nav (~73px mobile / ~81px desktop: py-3 +
+        // h-12/sm:h-14 logo + border) — the h-16 spacer lives inside the
+        // hidden !inlineFlowStarted block, so the collapsed layout needs its own.
+        <div className="px-6 pt-24 pb-10" ref={inlineModalRef}>
           <div className="max-w-5xl mx-auto">
             <BookingModal
               variant="inline"
@@ -938,6 +953,11 @@ const ServiceLandingPage = ({
       {/* Pricing Tiers — informational. When the inline form is open the
           tier picker inside the form is the canonical surface; hide this
           duplicate to avoid two pricing displays on the same page. */}
+      {/* Option A: the page tail (customSection / pricing / FAQ / location)
+          collapses with the rest of the landing layout during the inline
+          back-half — the modal is the only content on screen. */}
+      {!inlineFlowStarted && (
+      <>
       {customSection}
       {tiers.length > 0 && !useInlineForm && (
         <section className="py-16 px-6 bg-card/20">
@@ -1019,6 +1039,8 @@ const ServiceLandingPage = ({
           </button>
         </div>
       </section>
+      </>
+      )}
 
       {/* Footer back link removed — single back button lives in the header. */}
 
@@ -1050,7 +1072,7 @@ const ServiceLandingPage = ({
       {/* Sticky mobile CTA — only on phones, only when the inline form is in
           play. Always-visible running total + Continue so users never lose
           sight of the booking destination. */}
-      {useInlineForm && (
+      {useInlineForm && !inlineFlowStarted && (
         <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/40 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
           <div className="min-w-0">
             <p className="text-[9px] font-display uppercase tracking-[0.2em] text-muted-foreground">
