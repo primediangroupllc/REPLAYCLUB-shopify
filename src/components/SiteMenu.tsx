@@ -31,6 +31,7 @@ import {
   ChevronDown,
   Disc3,
   Headphones,
+  ShoppingBag,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,7 @@ const categories = [
   { label: "Join Roster", to: "/join-roster", icon: UserPlus },
   { label: "Talent Roster", to: "/?tab=Talent", icon: Users },
   { label: "Gift Cards", to: "/gift-cards", icon: Gift },
+  { label: "Shop", to: "/shop", icon: ShoppingBag },
 ];
 
 const baseAccountLinks = [

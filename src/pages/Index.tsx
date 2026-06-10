@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, lazy, Suspense } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Mail, User, ShoppingCart, X, Globe, Gift, Mic, Calendar, ShoppingBag, Shield } from "lucide-react";
+import { Mail, User, ShoppingCart, X, Globe, Gift, Mic, Calendar, AudioWaveform, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -1070,20 +1070,18 @@ const Index = () => {
               <span>Events</span>
             </button>
             <button
+              onClick={() => navigate(isLoggedIn ? "/profile?tab=mixes" : `/auth?next=${encodeURIComponent("/profile?tab=mixes")}`)}
+              className="group inline-flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-muted-foreground hover:text-foreground transition-all duration-200 text-[10px] sm:text-xs font-display uppercase tracking-[0.14em] px-2.5 sm:px-4 h-11 sm:h-9 rounded-full border border-border/50 hover:border-chrome/60 bg-card/40 hover:bg-card/70 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <AudioWaveform className="w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform group-hover:scale-110" />
+              <span>{t("nav.mixes", "Mixes")}</span>
+            </button>
+            <button
               onClick={() => navigate(isLoggedIn ? "/profile" : "/auth")}
               className="group inline-flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-muted-foreground hover:text-foreground transition-all duration-200 text-[10px] sm:text-xs font-display uppercase tracking-[0.14em] px-2.5 sm:px-4 h-11 sm:h-9 rounded-full border border-border/50 hover:border-chrome/60 bg-card/40 hover:bg-card/70 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform group-hover:scale-110" />
               <span>{isLoggedIn ? t("nav.profile") : t("nav.logIn")}</span>
-            </button>
-            <button
-              onClick={() => navigate("/shop")}
-              title="Shop coming soon"
-              className="group relative inline-flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-muted-foreground hover:text-foreground transition-all duration-200 text-[10px] sm:text-xs font-display uppercase tracking-[0.14em] px-2.5 sm:px-4 h-11 sm:h-9 rounded-full border border-border/50 hover:border-chrome/60 bg-card/40 hover:bg-card/70 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform group-hover:scale-110" />
-              <span>Shop</span>
-              <span className="hidden sm:inline px-1.5 py-0.5 rounded-sm bg-primary/20 text-primary text-[8px] font-semibold tracking-widest">Soon</span>
             </button>
           </div>
           <div className={`${isAdmin ? "w-24 sm:w-28" : "w-16 sm:w-20"} flex justify-end items-center gap-2`}>

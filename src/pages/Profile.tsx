@@ -1562,6 +1562,11 @@ const Profile = () => {
     return "mixes";
   })();
   const [activeTab, setActiveTab] = useState<"bookings" | "mixes" | "waitlist" | "tickets" | "profile">(initialTab);
+  // ?upload=1 (from the homepage MIXES CTA) auto-opens the upload dialog on the mixes tab.
+  const initialUpload = searchParams.get("upload") === "1";
+  // Recognition Room entry points stay hidden until Stage B (live ACRCloud) data exists.
+  // TrackRecognitionPanel, its types, and preview fixtures are intentionally left intact.
+  const RECOGNITION_ROOM_ENABLED = false;
 
   // PR — Mirror the active tab into ?tab=<id> so browser back/forward
   // navigates between tabs and direct links land users on the right tab.
@@ -1595,6 +1600,17 @@ const Profile = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // One-shot: ?upload=1 opens the upload dialog (defaultOpen below), then clears
+  // itself from the URL so a refresh doesn't re-open it.
+  useEffect(() => {
+    if (searchParams.get("upload") === "1") {
+      const next = new URLSearchParams(searchParams);
+      next.delete("upload");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const tierCardRef = useRef<HTMLDivElement>(null);
   const [displayName, setDisplayName] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -2407,6 +2423,7 @@ const Profile = () => {
                 {userId && (
                   <UploadMixDialog
                     userId={userId}
+                    defaultOpen={initialTab === "mixes" && initialUpload}
                     onUploaded={async () => {
                       const { data } = await supabase
                         .from("mixes")
@@ -2443,21 +2460,25 @@ const Profile = () => {
                         </div>
                       )}
                       <MixCard mix={mix} />
-                      <div className="flex justify-end pt-0.5">
-                        <button
-                          onClick={() => setRecognizeMix(mix)}
-                          className="text-[11px] font-display uppercase tracking-wider px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition-colors"
-                        >
-                          Recognize Tracks
-                        </button>
-                      </div>
-                      {recognizeMix?.id === mix.id && (
-                        <TrackRecognitionPanel
-                          mix={{ id: mix.id, title: mix.title }}
-                          mode="user"
-                          open
-                          onOpenChange={(o) => !o && setRecognizeMix(null)}
-                        />
+                      {RECOGNITION_ROOM_ENABLED && (
+                        <>
+                          <div className="flex justify-end pt-0.5">
+                            <button
+                              onClick={() => setRecognizeMix(mix)}
+                              className="text-[11px] font-display uppercase tracking-wider px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition-colors"
+                            >
+                              Recognize Tracks
+                            </button>
+                          </div>
+                          {recognizeMix?.id === mix.id && (
+                            <TrackRecognitionPanel
+                              mix={{ id: mix.id, title: mix.title }}
+                              mode="user"
+                              open
+                              onOpenChange={(o) => !o && setRecognizeMix(null)}
+                            />
+                          )}
+                        </>
                       )}
                     </div>
                   ))

@@ -46,13 +46,15 @@ const fmtMb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 export default function UploadMixDialog({
   userId,
   onUploaded,
+  defaultOpen = false,
 }: {
   userId: string;
   onUploaded?: () => void;
+  defaultOpen?: boolean;
 }) {
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
