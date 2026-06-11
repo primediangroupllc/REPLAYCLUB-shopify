@@ -403,7 +403,12 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
                     className={cn(
                       "text-left p-3 rounded-md border transition-all",
                       value.tierIdx === i
-                        ? "chrome-btn border-transparent scale-[1.02] ring-2 ring-primary/40 shadow-md shadow-primary/20"
+                        // No scale transform on the selected state: the tier button
+                        // is full card-width, so scaling it up overflows the card's
+                        // right edge — and the card's overflow-x-clip is a silent
+                        // no-op on iOS Safari < 16, so it visibly clips. Ring + bg
+                        // change are enough selection feedback.
+                        ? "chrome-btn border-transparent ring-2 ring-primary/40 shadow-md shadow-primary/20"
                         : "chrome-btn-outline",
                     )}
                   >
@@ -487,7 +492,7 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
                 </p>
               )}
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap justify-center gap-2">
               {[2, 3, 4, 5, 6].map((h) => (
                 <button
                   key={h}
