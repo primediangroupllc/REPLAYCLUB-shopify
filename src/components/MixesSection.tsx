@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
+import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { track } from "@/lib/analytics";
 import WaveformGlyph from "@/components/WaveformGlyph";
 import { exampleMix } from "@/assets/exampleMix";
 import mixPlaceholder from "@/assets/mix-placeholder.jpg";
@@ -23,9 +25,12 @@ interface MixesSectionProps {
  */
 export default function MixesSection({ isLoggedIn, youtubeHandle }: MixesSectionProps) {
   const navigate = useNavigate();
+  const deckViewTracked = useRef(false);
   const uploadTarget = "/profile?tab=mixes&upload=1";
-  const goUpload = () =>
+  const goUpload = () => {
+    track("upload_mix_click", { logged_in: isLoggedIn });
     navigate(isLoggedIn ? uploadTarget : `/auth?next=${encodeURIComponent(uploadTarget)}`);
+  };
 
   return (
     <section id="mixes" className="py-16 px-4 border-t border-border">
@@ -35,6 +40,13 @@ export default function MixesSection({ isLoggedIn, youtubeHandle }: MixesSection
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-10%" }}
+          onViewportEnter={() => {
+            // Funnel: deck actually scrolled into view (not just page-loaded).
+            // Ref guards StrictMode's dev double-invoke.
+            if (deckViewTracked.current) return;
+            deckViewTracked.current = true;
+            track("deck_view");
+          }}
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="space-y-5"
         >

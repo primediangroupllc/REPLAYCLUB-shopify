@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { BarChart3, Zap, Music, TrendingUp, ThumbsUp, AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { track } from "@/lib/analytics";
 import { toast } from "sonner";
 
 interface TransitionDetail {
@@ -165,6 +166,10 @@ const MixReportCard = ({ mixId, analysis, hasWaveform, onAnalysisComplete }: Mix
     }
 
     setAnalyzing(true);
+    // Funnel: user-path mix analysis (MixReportCard renders only on Profile —
+    // admin re-analysis goes through AdminDashboard and is intentionally not counted).
+    track("mix_analysis_started", { mix_id: mixId });
+    let analysisOk = false;
     try {
       const { data, error } = await supabase.functions.invoke("analyze-mix", {
         body: { mix_id: mixId },
@@ -180,6 +185,7 @@ const MixReportCard = ({ mixId, analysis, hasWaveform, onAnalysisComplete }: Mix
       }
 
       if (resolved?.analysis) {
+        analysisOk = true;
         onAnalysisComplete(resolved.analysis);
         toast.success("Mix analysis complete! 🎧");
       } else if (resolved?.error) {
@@ -191,6 +197,7 @@ const MixReportCard = ({ mixId, analysis, hasWaveform, onAnalysisComplete }: Mix
       console.error("Analysis error:", err);
       toast.error(err.message || "Failed to analyze mix");
     } finally {
+      track("mix_analysis_completed", { mix_id: mixId, ok: analysisOk });
       setAnalyzing(false);
     }
   };

@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { prefetchBookingBootstrap } from "@/lib/prefetchBookingBootstrap";
+import { track } from "@/lib/analytics";
 import { motion, AnimatePresence } from "framer-motion";
 import { SessionSelections } from "@/components/CustomizeSession";
 import logo from "@/assets/logo.png";
@@ -312,12 +313,21 @@ const Index = () => {
   // first report uses replaceState (so closing returns to the prior page),
   // subsequent reports pushState (so back maps to step navigation).
   const firstStepReportedRef = useRef(false);
+  // Funnel: fire homepage_view once per mount (ref guards StrictMode's
+  // dev double-invoke so we don't double-count).
+  const homepageViewTracked = useRef(false);
 
   // TODO(shopify-smoke-test): Remove after confirming Storefront API is wired.
   useEffect(() => {
     getProducts(10)
       .then((p) => console.log("Shopify products:", p))
       .catch((e) => console.error("Shopify products error:", e));
+  }, []);
+
+  useEffect(() => {
+    if (homepageViewTracked.current) return;
+    homepageViewTracked.current = true;
+    track("homepage_view");
   }, []);
   const [selectedRoom, setSelectedRoom] = useState<typeof rooms[0] | null>(null);
   // Admin-editable tier features pulled from studio_configurations.tiers.
@@ -1057,7 +1067,10 @@ const Index = () => {
               <span>Events</span>
             </button>
             <button
-              onClick={() => navigate(isLoggedIn ? "/profile?tab=mixes" : `/auth?next=${encodeURIComponent("/profile?tab=mixes")}`)}
+              onClick={() => {
+                track("mixes_nav_click", { logged_in: isLoggedIn });
+                navigate(isLoggedIn ? "/profile?tab=mixes" : `/auth?next=${encodeURIComponent("/profile?tab=mixes")}`);
+              }}
               className="group inline-flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-muted-foreground hover:text-foreground transition-all duration-200 text-[10px] sm:text-xs font-display uppercase tracking-[0.14em] px-2.5 sm:px-4 h-11 sm:h-9 rounded-full border border-border/50 hover:border-chrome/60 bg-card/40 hover:bg-card/70 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <AudioWaveform className="w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform group-hover:scale-110" />

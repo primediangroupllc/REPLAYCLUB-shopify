@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Upload, Loader2, Music, FileAudio } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { track } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -131,6 +132,9 @@ export default function UploadMixDialog({
     }
     setUploading(true);
     setProgress(0);
+    const fileMb = +(file.size / 1024 / 1024).toFixed(1);
+    const fileExt = (file.name.split(".").pop() || "").toLowerCase();
+    track("upload_started", { file_mb: fileMb, ext: fileExt });
     try {
       // Lossless formats (WAV/AIFF) are huge — a 1-hour WAV is ~600 MB, which
       // times out the single-request upload at the gateway (408) and is costly
@@ -161,17 +165,34 @@ export default function UploadMixDialog({
       // Owner = user_id (self). Provenance + pending status are also pinned by the
       // enforce_mix_write_rules trigger; we set them explicitly so the insert
       // satisfies the "Users can upload own mixes" RLS check directly.
-      const { error } = await supabase.from("mixes").insert({
-        user_id: userId,
-        uploaded_by_user_id: userId,
-        uploaded_by_role: "user",
-        status: "pending_review",
-        title: title.trim(),
-        description: description.trim() || null,
-        file_url: storagePath,
-        recorded_at: new Date().toISOString(),
-      });
+      const { data: inserted, error } = await supabase
+        .from("mixes")
+        .insert({
+          user_id: userId,
+          uploaded_by_user_id: userId,
+          uploaded_by_role: "user",
+          status: "pending_review",
+          title: title.trim(),
+          description: description.trim() || null,
+          file_url: storagePath,
+          recorded_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+
+      // Funnel: upload_completed carries upload_index (this user's Nth upload) —
+      // return_upload (>=2) / third_mix_uploaded (>=3) are DERIVED from it.
+      const { count } = await supabase
+        .from("mixes")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId);
+      track("upload_completed", {
+        mix_id: inserted?.id ?? null,
+        upload_index: count ?? 1,
+        file_mb: fileMb,
+        ext: fileExt,
+      });
 
       toast({
         title: "Mix uploaded",
