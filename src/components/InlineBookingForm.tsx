@@ -438,7 +438,15 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
                             className="flex items-start gap-2.5 text-sm font-body text-foreground leading-relaxed"
                           >
                             <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-primary" />
-                            <span className="flex-1">{item}</span>
+                            {/* min-w-0 + break-words is the SOURCE fix for the tier
+                                horizontal-overflow (bug F1, hit on FX3): a flex child
+                                defaults to min-width:auto and refuses to shrink below
+                                its content's intrinsic width, so a long feature string
+                                pushes the row wider than the card. The card's
+                                overflow-x-clip is a SECOND layer that only catches it on
+                                iOS Safari ≥16 (overflow:clip is unsupported below 16).
+                                Keep BOTH layers — they are not redundant. */}
+                            <span className="flex-1 min-w-0 break-words">{item}</span>
                             {explanation && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -513,7 +521,9 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
                     className="flex items-start gap-2.5 text-sm font-body text-foreground leading-relaxed"
                   >
                     <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-primary" />
-                    <span>{item}</span>
+                    {/* min-w-0 + break-words — same flex min-width:auto overflow
+                        guard as the tier list above (bug F1). */}
+                    <span className="min-w-0 break-words">{item}</span>
                   </li>
                 ))}
               </ul>
