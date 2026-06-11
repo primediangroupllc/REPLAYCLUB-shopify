@@ -1073,7 +1073,7 @@ const ServiceLandingPage = ({
           play. Always-visible running total + Continue so users never lose
           sight of the booking destination. */}
       {useInlineForm && !inlineFlowStarted && (
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/40 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/40 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
           <div className="min-w-0">
             <p className="text-[9px] font-display uppercase tracking-[0.2em] text-muted-foreground">
               {stickyPriceLabel ? "Estimated total" : "Your booking"}
