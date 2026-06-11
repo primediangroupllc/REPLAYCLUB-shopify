@@ -284,9 +284,9 @@ const SiteMenu = () => {
             type="button"
             aria-label="Go back"
             onClick={() => window.history.back()}
-            className="h-9 w-9 flex items-center justify-center rounded-full border border-chrome/40 bg-background/80 backdrop-blur-md text-foreground hover:bg-background hover:border-chrome/70 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.6)] chrome-text"
+            className="h-11 w-11 sm:h-9 sm:w-9 flex items-center justify-center rounded-full border border-border/50 hover:border-chrome/60 bg-card/40 hover:bg-card/70 backdrop-blur-sm text-muted-foreground hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-5 w-5" />
           </button>
         )}
       </div>
