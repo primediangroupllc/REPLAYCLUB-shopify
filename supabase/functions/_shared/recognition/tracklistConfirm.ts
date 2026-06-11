@@ -36,17 +36,26 @@ export function buildJobConfirmFields(
   };
 }
 
-// Validate a tracklist before confirming: non-empty, positions sequential 1..n,
-// every row has a title/artist OR is explicitly manual. Returns errors ([] = ok).
+// Decision A: renumber positions 1..n in current (position) order, before
+// validation — deletes/adds during review can leave gaps. Preserves every other
+// field (incl. id at runtime via spread), so callers can persist the new order.
+export function renumberPositions<T extends ConfirmedTrackRow>(rows: T[]): T[] {
+  return [...rows]
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map((r, i) => ({ ...r, position: i + 1 }));
+}
+
+// Validate a tracklist before confirming. Decision B: unknown / title-less rows
+// ARE allowed — they're private structural review records, and toDisplayTracklist
+// filters them out of the public mixes.tracklist. We only require a non-empty
+// list with sequential positions (renumberPositions guarantees the latter when
+// run first). Returns errors ([] = ok).
 export function validateTracklistForConfirm(rows: ConfirmedTrackRow[]): string[] {
   const errors: string[] = [];
   if (!rows.length) errors.push("tracklist is empty");
   rows.forEach((r, i) => {
     if (r.position !== i + 1) {
       errors.push(`position ${r.position} out of sequence at index ${i}`);
-    }
-    if (!r.title && !r.artist && r.source !== "manual") {
-      errors.push(`track at position ${r.position} has no title/artist`);
     }
   });
   return errors;

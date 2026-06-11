@@ -8,7 +8,10 @@ import {
   statusFromConfidence,
 } from "./recognitionNormalize.ts";
 import { mergeSegmentsToTracklist } from "./trackSegmentMerge.ts";
-import { validateTracklistForConfirm } from "./tracklistConfirm.ts";
+import {
+  renumberPositions,
+  validateTracklistForConfirm,
+} from "./tracklistConfirm.ts";
 import { extractTimeline } from "./scanOrchestration.ts";
 import {
   MOCK_ACR_FILE_SCAN_ENVELOPE,
@@ -117,13 +120,35 @@ Deno.test("unknown / low-confidence: <40 score AND no-match window both → unkn
   assertEquals(unknowns.length, 2); // the score-31 match + the empty window
 });
 
-Deno.test("validateTracklistForConfirm flags empty + out-of-sequence + missing title", () => {
+Deno.test("validateTracklistForConfirm: empty + out-of-sequence flagged; title-less ALLOWED (Decision B)", () => {
   assertEquals(validateTracklistForConfirm([]).length, 1); // empty
+
   const segs = normalizeAcrResult(MOCK_ACR_RESULT, { jobId: "j1", mixId: "m1" });
   const tl = mergeSegmentsToTracklist(segs);
-  // the no-match (null title, source 'auto') row should be flagged
-  const errs = validateTracklistForConfirm(tl);
-  assert(errs.some((e) => e.includes("no title/artist")));
+  // tl has a title-less unknown row but is sequential 1..n → now VALID (unknowns
+  // are private review records; toDisplayTracklist filters them from public).
+  assertEquals(validateTracklistForConfirm(tl), []);
+
+  // out-of-sequence positions are still flagged
+  const gapped = tl.map((r, i) => (i === 2 ? { ...r, position: 99 } : r));
+  assert(validateTracklistForConfirm(gapped).length >= 1);
+});
+
+Deno.test("renumberPositions: 1..n in order; gaps/dupes normalized; fields preserved (Decision A)", () => {
+  const segs = normalizeAcrResult(MOCK_ACR_RESULT, { jobId: "j1", mixId: "m1" });
+  const tl = mergeSegmentsToTracklist(segs);
+  // simulate a delete (drop the position-3 row) + a hand-added row at position 99
+  const messy = [
+    tl[0],
+    tl[1],
+    tl[3],
+    tl[4],
+    { ...tl[0], position: 99, title: "Added", artist: "Me" },
+  ];
+  const fixed = renumberPositions(messy);
+  assertEquals(fixed.map((r) => r.position), [1, 2, 3, 4, 5]);
+  assertEquals(fixed[4].title, "Added"); // the was-99 row sorts last
+  assertEquals(validateTracklistForConfirm(fixed), []); // valid after renumber
 });
 
 Deno.test("REAL ACRCloud File-Scanning envelope: extractTimeline + normalize → 24/24, no null placeholder", () => {

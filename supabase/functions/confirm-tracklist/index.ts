@@ -8,6 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import {
   buildJobConfirmFields,
+  renumberPositions,
   toDisplayTracklist,
   validateTracklistForConfirm,
 } from "../_shared/recognition/tracklistConfirm.ts";
@@ -57,7 +58,21 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("mix_id", mix_id)
       .order("position", { ascending: true });
-    const tracklist = (rows ?? []) as unknown as ConfirmedTrackRow[];
+    const original = (rows ?? []) as unknown as Array<
+      ConfirmedTrackRow & { id: string }
+    >;
+    // Decision A: renumber 1..n before validating (review deletes/adds can leave
+    // position gaps), and persist any row whose position changed.
+    const tracklist = renumberPositions(original);
+    for (const r of tracklist) {
+      const orig = original.find((o) => o.id === r.id);
+      if (orig && orig.position !== r.position) {
+        await supabase
+          .from("confirmed_tracklist")
+          .update({ position: r.position })
+          .eq("id", r.id);
+      }
+    }
 
     const errors = validateTracklistForConfirm(tracklist);
     if (errors.length) {
