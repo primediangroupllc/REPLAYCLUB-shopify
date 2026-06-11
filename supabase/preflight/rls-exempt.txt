@@ -1,0 +1,9 @@
+# RLS exemptions for the migration pre-flight lint (Check A).
+#
+# List one bare public table name per line for tables that intentionally do NOT
+# carry row-level security (e.g. truly public read-only reference data managed
+# elsewhere). Comments (#) and blank lines are ignored. Keep this list short and
+# justify each entry — an empty list is the healthy default.
+#
+# Example:
+#   site_settings

@@ -18,6 +18,20 @@
         SUPABASE_PROJECT_REF: ynpkkoqzenmctqrmtnxs
       steps:
         - uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+        - name: Pre-flight migration lint (RLS + realtime)
+          run: |
+            chmod +x supabase/preflight/lint-migrations.sh
+            if [ -n "${{ github.event.before }}" ] && git rev-parse --verify "${{ github.event.before }}" >/dev/null 2>&1; then
+              BASE="${{ github.event.before }}"
+            else
+              BASE="HEAD~1"
+            fi
+            CHANGED="$(git diff --name-only --diff-filter=AMR "$BASE" "${{ github.sha }}" -- supabase/migrations/ || true)"
+            echo "Base: $BASE"
+            echo "Changed migrations:"; printf '%s\n' "$CHANGED"
+            CHANGED_MIGRATIONS="$CHANGED" ./supabase/preflight/lint-migrations.sh
         - uses: supabase/setup-cli@v1
           with:
             version: latest
