@@ -1,0 +1,57 @@
+name: Visual QA (advisory)
+
+# Advisory visual-regression check for key public pages. Separate from CI so it
+# never blocks a deploy. Run manually after a deploy (or enable the schedule once
+# the baseline is stable). See tests/visual/README.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Origin to screenshot (default: VISUAL_QA_BASE_URL var, else prod)"
+        required: false
+        type: string
+      update_baseline:
+        description: "Regenerate baselines instead of diffing (uploaded as an artifact to commit)"
+        required: false
+        type: boolean
+        default: false
+  # Opt-in: uncomment to screenshot prod daily once the baseline is trusted.
+  # Keep it sparse — prod is behind a WAF that dislikes aggressive polling.
+  # schedule:
+  #   - cron: "30 9 * * *"
+
+jobs:
+  visual:
+    name: Visual snapshots (chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - name: Run visual specs
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ inputs.base_url || vars.VISUAL_QA_BASE_URL || 'https://www.replayclub.io' }}
+        run: |
+          if [ "${{ inputs.update_baseline }}" = "true" ]; then
+            bunx playwright test tests/visual --project=chromium-desktop --update-snapshots
+          else
+            bunx playwright test tests/visual --project=chromium-desktop
+          fi
+      - name: Upload report (diffs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-report
+          path: playwright-report/
+          retention-days: 14
+      - name: Upload regenerated baselines
+        if: always() && inputs.update_baseline == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-baselines
+          path: tests/**/*-snapshots/**
+          retention-days: 14
