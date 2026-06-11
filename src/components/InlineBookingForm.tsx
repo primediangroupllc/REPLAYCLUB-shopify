@@ -269,7 +269,7 @@ const InlineBookingForm = forwardRef<InlineBookingFormHandle, InlineBookingFormP
     // document (bug A0, effect 2). `clip` — not `hidden` — so it never becomes
     // a scroll container; reset to `visible` at lg so the desktop sticky aside
     // (lg:sticky below) is unaffected.
-    <div className="card-premium p-4 sm:p-8 overflow-x-clip lg:overflow-x-visible">
+    <div className="card-premium p-3 sm:p-8 overflow-x-clip lg:overflow-x-visible">
       <div className="pb-4 mb-6 border-b border-border/30">
         <h3 className="font-display text-lg sm:text-xl font-bold chrome-text uppercase tracking-[0.15em]">
           Book your session
