@@ -9,7 +9,11 @@ import {
 } from "./recognitionNormalize.ts";
 import { mergeSegmentsToTracklist } from "./trackSegmentMerge.ts";
 import { validateTracklistForConfirm } from "./tracklistConfirm.ts";
-import { MOCK_ACR_RESULT } from "./mockAcrCloudPayload.ts";
+import { extractTimeline } from "./scanOrchestration.ts";
+import {
+  MOCK_ACR_FILE_SCAN_ENVELOPE,
+  MOCK_ACR_RESULT,
+} from "./mockAcrCloudPayload.ts";
 
 const ACR_ENV = [
   "ACRCLOUD_CONSOLE_API_TOKEN",
@@ -120,4 +124,42 @@ Deno.test("validateTracklistForConfirm flags empty + out-of-sequence + missing t
   // the no-match (null title, source 'auto') row should be flagged
   const errs = validateTracklistForConfirm(tl);
   assert(errs.some((e) => e.includes("no title/artist")));
+});
+
+Deno.test("REAL ACRCloud File-Scanning envelope: extractTimeline + normalize → 24/24, no null placeholder", () => {
+  // extractTimeline must drill into data[0].results.music[] (the LIVE shape),
+  // NOT treat the file object itself as one timeline item (the pre-patch bug,
+  // which yielded a single null 'unknown' segment — 0 of 24 captured).
+  const timeline = extractTimeline(MOCK_ACR_FILE_SCAN_ENVELOPE);
+  assertEquals(timeline.data?.length, 24);
+
+  const segs = normalizeAcrResult(timeline, { jobId: "j1", mixId: "m1" });
+  assertEquals(segs.length, 24);
+  // Every window resolved to a real match — NO null "unknown" placeholder.
+  assert(segs.every((s) => s.source === "acrcloud"));
+  assert(segs.every((s) => s.title !== null && s.artist !== null));
+
+  // Offsets parse: first item offset 30, played_duration 140 → end 170.
+  assertEquals(segs[0].detected_start_seconds, 30);
+  assertEquals(segs[0].detected_end_seconds, 170);
+  // sample offsets read from INSIDE item.result (the real-shape fallback).
+  assertEquals(segs[0].sample_start_seconds, 30);
+  assertEquals(segs[0].sample_end_seconds, 170);
+
+  // Confidence maps from the ACRCloud score; platform_ids from external_metadata.
+  const closer = segs.find((s) => s.title === "Closer (Extended)")!;
+  assertEquals(closer.artist, "FIRZA");
+  assertEquals(closer.source_confidence, 97);
+  assertEquals(closer.normalized_confidence, 97);
+  assertEquals(closer.status, "confirmed");
+  assertEquals(
+    (closer.platform_ids as Record<string, unknown>)?.spotify,
+    "spfy_firza",
+  );
+
+  // merge → real rows (24 distinct title+artist → 24 rows), no null placeholders.
+  const tl = mergeSegmentsToTracklist(segs);
+  assertEquals(tl.length, 24);
+  assert(tl.every((t) => t.title !== null && t.artist !== null));
+  assert(tl.every((t) => t.source === "auto"));
 });

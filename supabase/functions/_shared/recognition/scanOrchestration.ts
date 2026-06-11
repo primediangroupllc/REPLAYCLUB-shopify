@@ -90,9 +90,18 @@ export function extractTimeline(raw: unknown): AcrFileScanResult {
     ) {
       const inner = first.results ?? first.result;
       if (Array.isArray(inner)) return { data: inner };
-      if (inner && Array.isArray(inner.data)) return { data: inner.data };
+      if (inner && typeof inner === "object") {
+        // REAL File-Scanning: the timeline lives at data[0].results.music[].
+        if (Array.isArray(inner.music)) return { data: inner.music };
+        if (Array.isArray(inner.data)) return { data: inner.data };
+      }
     }
     return { data: r.data };
+  }
+  if (
+    r.results && typeof r.results === "object" && Array.isArray(r.results.music)
+  ) {
+    return { data: r.results.music };
   }
   if (Array.isArray(r.results)) return { data: r.results };
   return { data: [] };

@@ -23,6 +23,23 @@ import {
 
 const BATCH = 25;
 
+// Decode JWT claims WITHOUT verifying the signature — the platform gateway
+// (verify_jwt=true) has already validated the signature before this code runs;
+// we only need the role claim. Mirrors process-email-queue's guard.
+function parseJwtClaims(token: string): Record<string, unknown> | null {
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const payload = parts[1]
+      .replaceAll("-", "+")
+      .replaceAll("_", "/")
+      .padEnd(Math.ceil(parts[1].length / 4) * 4, "=");
+    return JSON.parse(atob(payload)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   const j = (b: unknown, status = 200) =>
     new Response(JSON.stringify(b), {
@@ -31,10 +48,18 @@ Deno.serve(async (req) => {
     });
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
 
+  // SERVICE-ONLY guard. SUPABASE_SERVICE_ROLE_KEY is kept ONLY as the DB client
+  // credential (createClient below) — NOT for auth: under the new API-key model
+  // the runtime injects an sb_secret_* value here, which is NOT the legacy
+  // service-role JWT the cron sends, so the old raw-string equality rejected every
+  // cron call (403). verify_jwt=true means the gateway already verified the
+  // bearer's signature; we just require the service-role claim so only the cron
+  // (service role) — not a logged-in user JWT — can drive polls.
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  // SERVICE-ONLY guard.
-  const bearer = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
-  if (!bearer || bearer !== serviceKey) return j({ error: "Forbidden" }, 403);
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return j({ error: "Unauthorized" }, 401);
+  const claims = parseJwtClaims(authHeader.slice("Bearer ".length).trim());
+  if (claims?.role !== "service_role") return j({ error: "Forbidden" }, 403);
 
   if (!acrCloudConfigured()) return j({ configured: false, processed: 0 }, 200);
   const cfg = getAcrCloudConfig()!;

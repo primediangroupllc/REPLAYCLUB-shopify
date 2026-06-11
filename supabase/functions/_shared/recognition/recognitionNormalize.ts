@@ -58,14 +58,21 @@ interface AcrMusic {
   label?: string;
   duration_ms?: number;
   external_metadata?: Record<string, unknown>;
+  // REAL File-Scanning nests the sampled-window times inside the matched result.
+  sample_begin_time_offset_ms?: number;
+  sample_end_time_offset_ms?: number;
+  // Spec/mock shape wraps candidate matches under result.music[].
+  music?: AcrMusic[];
 }
 interface AcrTimelineItem {
   offset?: number; // seconds into the mix
   played_duration?: number; // seconds
   sample_begin_time_offset_ms?: number;
   sample_end_time_offset_ms?: number;
-  result?: { music?: AcrMusic[] }; // some shapes nest music under result
-  music?: AcrMusic[]; // others put it directly
+  // REAL File-Scanning: a SINGLE matched track at item.result. Spec/mock shape:
+  // an object carrying candidate matches under result.music[].
+  result?: AcrMusic;
+  music?: AcrMusic[]; // some shapes put candidates directly on the item
 }
 export interface AcrFileScanResult {
   data?: AcrTimelineItem[];
@@ -105,9 +112,21 @@ export function normalizeAcrResult(
     const end = start != null && typeof item.played_duration === "number"
       ? start + item.played_duration
       : null;
-    const music = item.result?.music ?? item.music ?? [];
+    // Candidate matches. REAL File-Scanning puts a SINGLE matched track at
+    // item.result; the spec/mock shape wraps candidates under item.result.music[]
+    // (or item.music[]). Support all three.
+    const resultObj = item.result;
+    const candidates: AcrMusic[] = Array.isArray(resultObj?.music)
+      ? resultObj!.music!
+      : Array.isArray(item.music)
+      ? item.music
+      : resultObj &&
+          (resultObj.title != null || resultObj.score != null ||
+            resultObj.artists != null)
+      ? [resultObj]
+      : [];
 
-    if (!music.length) {
+    if (!candidates.length) {
       // No-match window → an "unknown" segment (the UI fills in the copy).
       rows.push({
         job_id: ctx.jobId,
@@ -131,13 +150,19 @@ export function normalizeAcrResult(
     }
 
     // Best match = highest score in the window.
-    const best = [...music].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+    const best = [...candidates].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
     const conf = clamp100(best.score);
+    // REAL shape carries the sampled-window times inside the matched result; the
+    // mock/spec shape carries them on the item. Prefer item, fall back to result.
+    const sampleBeginMs = item.sample_begin_time_offset_ms ??
+      best.sample_begin_time_offset_ms;
+    const sampleEndMs = item.sample_end_time_offset_ms ??
+      best.sample_end_time_offset_ms;
     rows.push({
       job_id: ctx.jobId,
       mix_id: ctx.mixId,
-      sample_start_seconds: sec(item.sample_begin_time_offset_ms),
-      sample_end_seconds: sec(item.sample_end_time_offset_ms),
+      sample_start_seconds: sec(sampleBeginMs),
+      sample_end_seconds: sec(sampleEndMs),
       detected_start_seconds: start,
       detected_end_seconds: end,
       title: best.title ?? null,
