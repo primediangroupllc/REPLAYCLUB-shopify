@@ -106,17 +106,6 @@ export default function MixesSection({ isLoggedIn, youtubeHandle }: MixesSection
           </div>
 
           <WaveformGlyph peaks={exampleMix.waveformPeaks} className="w-full h-14" />
-
-          <div className="flex flex-wrap gap-1.5">
-            {exampleMix.genres.map((g) => (
-              <span
-                key={g}
-                className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-display font-semibold uppercase tracking-wider bg-muted/40 text-muted-foreground border border-border"
-              >
-                {g}
-              </span>
-            ))}
-          </div>
         </motion.div>
       </div>
     </section>
