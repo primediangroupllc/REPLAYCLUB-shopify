@@ -32,10 +32,12 @@ CREATE INDEX IF NOT EXISTS idx_ops_alerts_unresolved
 
 ALTER TABLE public.ops_alerts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Admins can read ops alerts" ON public.ops_alerts;
 CREATE POLICY "Admins can read ops alerts"
   ON public.ops_alerts FOR SELECT TO authenticated
   USING (has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "Service role manages ops alerts" ON public.ops_alerts;
 CREATE POLICY "Service role manages ops alerts"
   ON public.ops_alerts FOR ALL TO service_role
   USING (true) WITH CHECK (true);

@@ -128,44 +128,64 @@ serve(async (req) => {
     });
   }
 
-  // Record findings; dedupe by session so the same charge isn't re-alerted daily.
+  // Record findings; dedupe by session (charges) and by day (truncation) so the
+  // same finding isn't re-alerted every run.
   let newAlerts: Array<Record<string, unknown>> = [];
-  if (stranded.length > 0) {
-    const rows = stranded.map((s) => ({
-      kind: "stranded_charge",
+  const alertRows: Array<Record<string, unknown>> = stranded.map((s) => ({
+    kind: "stranded_charge",
+    severity: "critical",
+    dedupe_key: `stranded_charge:${s.stripe_session_id}`,
+    summary:
+      `Stranded charge: ${((s.amount_cents as number) / 100).toFixed(2)} ` +
+      `${String(s.currency ?? "usd").toUpperCase()} paid, booking ${s.booking_id} ` +
+      `still pending (${s.slot})`,
+    details: s,
+  }));
+  // A candidate-cap hit is a scan-level blind spot — the unscanned tail may hold
+  // stranded charges, so it must NOT read as "all clear". Record it as its own
+  // alert (per-day dedupe) so the cap-hit surfaces in ops_alerts AND the admin
+  // email even when the scanned batch itself found nothing.
+  if (truncated) {
+    alertRows.push({
+      kind: "stranded_charge_scan_truncated",
       severity: "critical",
-      dedupe_key: `stranded_charge:${s.stripe_session_id}`,
+      dedupe_key: `tripwire_truncated:${new Date(now).toISOString().slice(0, 10)}`,
       summary:
-        `Stranded charge: ${((s.amount_cents as number) / 100).toFixed(2)} ` +
-        `${String(s.currency ?? "usd").toUpperCase()} paid, booking ${s.booking_id} ` +
-        `still pending (${s.slot})`,
-      details: s,
-    }));
+        `Tripwire candidate cap hit: checked ${scanned} (newest pending-with-session, last 14d); ` +
+        `older/excess candidates were NOT checked — more stranded charges may exist beyond the cap of ${CANDIDATE_LIMIT}.`,
+      details: { scanned, candidate_limit: CANDIDATE_LIMIT, action: "raise CANDIDATE_LIMIT or narrow the window" },
+    });
+  }
+  if (alertRows.length > 0) {
     const { data: inserted, error: upErr } = await supabase
       .from("ops_alerts")
-      .upsert(rows, { onConflict: "dedupe_key", ignoreDuplicates: true })
+      .upsert(alertRows, { onConflict: "dedupe_key", ignoreDuplicates: true })
       .select();
     if (upErr) console.error("ops_alerts upsert failed:", upErr.message);
     newAlerts = inserted ?? [];
   }
 
-  // Alert an admin ONLY for newly-detected stranded charges. Read-only: a human
-  // decides on refunds; this tool never touches Stripe or bookings.
+  // Alert an admin for newly-recorded findings (stranded charges and/or a scan
+  // truncation). Read-only: a human decides on refunds; this never touches
+  // Stripe or bookings.
   if (newAlerts.length > 0) {
     const lines = newAlerts
       .map((a) => {
         const d = (a.details ?? {}) as Record<string, unknown>;
-        return `- ${a.summary}\n    session=${d.stripe_session_id} intent=${d.payment_intent} email=${d.customer_email}`;
+        return d.stripe_session_id
+          ? `- ${a.summary}\n    session=${d.stripe_session_id} intent=${d.payment_intent} email=${d.customer_email}`
+          : `- ${a.summary}`;
       })
       .join("\n");
     const consoleLog =
-      `${newAlerts.length} NEW stranded charge(s) — Stripe shows paid but the booking is still pending.\n` +
+      `${newAlerts.length} NEW tripwire alert(s) — Stripe shows paid but the booking is still pending` +
+      `${truncated ? "; NOTE: the candidate cap was hit, so this scan is INCOMPLETE — see the truncation alert below" : ""}.\n` +
       `Likely the 23505 duplicate-slot path where the refund did not complete.\n\n` +
       `${lines}\n\nResolve in Stripe + bookings manually; this tool never auto-refunds.`;
     const idBase =
-      "stranded-charge-" +
+      "tripwire-" +
       newAlerts
-        .map((a) => ((a.details ?? {}) as Record<string, unknown>).stripe_session_id)
+        .map((a) => String(a.dedupe_key ?? ""))
         .sort()
         .join("_")
         .slice(0, 80);
