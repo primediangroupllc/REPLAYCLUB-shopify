@@ -22,11 +22,13 @@ export default function TrackEditDrawer({
   open,
   onOpenChange,
   onSave,
+  onDelete,
 }: {
   track: RecognizedTrack | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onSave?: (t: RecognizedTrack) => void;
+  onDelete?: (t: RecognizedTrack) => void;
 }) {
   const [draft, setDraft] = useState<RecognizedTrack | null>(track);
   const [notes, setNotes] = useState("");
@@ -120,11 +122,24 @@ export default function TrackEditDrawer({
           </div>
         </div>
 
-        <SheetFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={() => draft && onSave?.(draft)}>Save changes</Button>
+        <SheetFooter className="gap-2 sm:justify-between">
+          {onDelete ? (
+            <Button
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={() => draft && onDelete(draft)}
+            >
+              Delete track
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => draft && onSave?.(draft)}>Save changes</Button>
+          </div>
         </SheetFooter>
       </SheetContent>
     </Sheet>
