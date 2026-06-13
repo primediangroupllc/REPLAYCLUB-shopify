@@ -17,23 +17,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { transcodeWavToMp3 } from "@/lib/transcodeWav";
-import { compressAudioToMp3 } from "@/lib/compressAudio";
 
 // Accepted upload formats (requirement: mp3 / wav / aiff / m4a). Browsers report
 // AIFF/M4A MIME inconsistently, so we gate on file EXTENSION here and let the
 // storage bucket's MIME allowlist (widened in the migration) be the backstop.
-const ACCEPTED_EXTS = ["mp3", "wav", "aiff", "aif", "m4a"];
-const ACCEPT_ATTR = ".mp3,.wav,.aiff,.aif,.m4a,audio/*";
+const ACCEPTED_EXTS = ["mp3", "m4a"];
+const ACCEPT_ATTR = ".mp3,.m4a,audio/mpeg,audio/mp4";
 
 // We send an EXPLICIT Content-Type by extension. Browsers report file.type
 // inconsistently for AIFF/M4A (often empty), which Storage would treat as
 // application/octet-stream and reject against the bucket's MIME allowlist.
 const MIME_BY_EXT: Record<string, string> = {
   mp3: "audio/mpeg",
-  wav: "audio/wav",
-  aiff: "audio/aiff",
-  aif: "audio/aiff",
   m4a: "audio/mp4",
 };
 
@@ -80,7 +75,7 @@ export default function UploadMixDialog({
     if (!ACCEPTED_EXTS.includes(ext)) {
       toast({
         title: "Unsupported format",
-        description: "Please upload an MP3, WAV, AIFF, or M4A file.",
+        description: "Please upload an MP3 or M4A file for now.",
         variant: "destructive",
       });
       if (fileRef.current) fileRef.current.value = "";
@@ -136,25 +131,11 @@ export default function UploadMixDialog({
     const fileExt = (file.name.split(".").pop() || "").toLowerCase();
     track("upload_started", { file_mb: fileMb, ext: fileExt });
     try {
-      // Lossless formats (WAV/AIFF) are huge — a 1-hour WAV is ~600 MB, which
-      // times out the single-request upload at the gateway (408) and is costly
-      // to store. Transcode to MP3 in the browser FIRST (reusing the same libs
-      // the admin uploader uses), then upload the much smaller MP3. MP3/M4A are
-      // already compressed, so they pass straight through.
-      let body: Blob = file;
-      let ext = (file.name.split(".").pop() || "dat").toLowerCase();
-
-      if (ext === "wav") {
-        setPhase("converting");
-        setProgress(0);
-        body = await transcodeWavToMp3(file, 192, (pct) => setProgress(pct));
-        ext = "mp3";
-      } else if (ext === "aiff" || ext === "aif") {
-        setPhase("converting");
-        setProgress(0);
-        body = await compressAudioToMp3(file, (pct) => setProgress(pct), 192);
-        ext = "mp3";
-      }
+      // Launch path: MP3/M4A are already compressed and stream-ready, so we
+      // store the ORIGINAL file directly — no client-side transcoding (lamejs).
+      // WAV/AIFF are rejected at pickFile with a clean message.
+      const body: Blob = file;
+      const ext = (file.name.split(".").pop() || "dat").toLowerCase();
 
       setPhase("uploading");
       setProgress(0);
@@ -196,7 +177,7 @@ export default function UploadMixDialog({
 
       toast({
         title: "Mix uploaded",
-        description: "It's in the review queue — your report card will appear here once it's ready.",
+        description: "It's in the review queue — it'll appear on your profile once approved.",
       });
       reset();
       setOpen(false);

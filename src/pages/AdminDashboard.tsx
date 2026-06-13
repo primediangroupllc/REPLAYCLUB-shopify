@@ -101,8 +101,6 @@ import {
   Cell,
 } from "recharts";
 import logo from "@/assets/logo.png";
-import { transcodeWavToMp3 } from "@/lib/transcodeWav";
-import { compressAudioToMp3 } from "@/lib/compressAudio";
 import { logAdminAction } from "@/lib/auditLog";
 import MixStatusBadge, { MIX_STATUSES } from "@/components/MixStatusBadge";
 import { findPhotographerPackage } from "@/lib/bookingConstants";
@@ -476,10 +474,6 @@ const AdminDashboard = () => {
   const [streamingDragOver, setStreamingDragOver] = useState(false);
   const [streamingUploadProgress, setStreamingUploadProgress] = useState(0);
   const mixStreamingFileRef = useRef<HTMLInputElement>(null);
-  const [transcodedMp3, setTranscodedMp3] = useState<Blob | null>(null);
-  const [transcodeProgress, setTranscodeProgress] = useState(0);
-  const [isTranscoding, setIsTranscoding] = useState(false);
-  const [transcodeError, setTranscodeError] = useState<string | null>(null);
   const [rosterSubmissions, setRosterSubmissions] = useState<any[]>([]);
   const [rosterFilter, setRosterFilter] = useState<string>("all");
   const [blockedDates, setBlockedDates] = useState<any[]>([]);
@@ -492,68 +486,28 @@ const AdminDashboard = () => {
     checkAdminAndLoad();
   }, []);
 
-  // Auto-compress any audio file to a streaming-quality MP3
-  useEffect(() => {
-    if (!mixFile) {
-      setTranscodedMp3(null);
-      setTranscodeProgress(0);
-      setIsTranscoding(false);
-      setTranscodeError(null);
+  // (Launch) Client-side transcoding removed — admin stores the ORIGINAL file as
+  // file_url and playback uses it directly. A manual streaming file may still be
+  // attached. No lamejs in the upload path.
+
+  // Launch: accept MP3/M4A only (store original); reject others cleanly.
+  const pickMixFile = (f: File | null) => {
+    if (!f) {
+      setMixFile(null);
       return;
     }
-
-    let cancelled = false;
-    setIsTranscoding(true);
-    setTranscodeProgress(0);
-    setTranscodeError(null);
-    setTranscodedMp3(null);
-
-    const isWav = mixFile.name.toLowerCase().endsWith(".wav");
-
-    // WAV: use the memory-efficient slice-based transcoder
-    // MP3/other: use Web Audio API decode → re-encode at 128kbps
-    const compressPromise = isWav
-      ? transcodeWavToMp3(mixFile, 128, (pct) => {
-          if (!cancelled) setTranscodeProgress(pct);
-        })
-      : compressAudioToMp3(mixFile, (pct) => {
-          if (!cancelled) setTranscodeProgress(pct);
-        });
-
-    compressPromise
-      .then((blob) => {
-        if (!cancelled) {
-          // Only use compressed version if it's meaningfully smaller
-          const ratio = blob.size / mixFile.size;
-          if (ratio >= 0.9) {
-            console.warn(
-              `[Compress] Result is ${Math.round(ratio * 100)}% of original — skipping`,
-            );
-            setTranscodedMp3(null);
-            setTranscodeError(null);
-          } else {
-            console.log(
-              `[Compress] ${(mixFile.size / 1024 / 1024).toFixed(0)} MB → ` +
-                `${(blob.size / 1024 / 1024).toFixed(1)} MB (${Math.round(ratio * 100)}%)`,
-            );
-            setTranscodedMp3(blob);
-          }
-          setIsTranscoding(false);
-          setTranscodeProgress(100);
-        }
-      })
-      .catch((err) => {
-        console.error("[Compress] Error:", err);
-        if (!cancelled) {
-          setIsTranscoding(false);
-          setTranscodeError(err.message || "Compression failed");
-        }
+    const ext = (f.name.split(".").pop() || "").toLowerCase();
+    if (ext !== "mp3" && ext !== "m4a") {
+      toast({
+        title: "Unsupported format",
+        description: "Please upload an MP3 or M4A file for now.",
+        variant: "destructive",
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mixFile]);
+      if (mixFileRef.current) mixFileRef.current.value = "";
+      return;
+    }
+    setMixFile(f);
+  };
 
   const checkAdminAndLoad = async () => {
     const {
@@ -667,7 +621,7 @@ const AdminDashboard = () => {
 
       // Upload streaming file: use manual override OR auto-compressed MP3
       let streamingPath: string | null = null;
-      const streamingBlob = mixStreamingFile || transcodedMp3;
+      const streamingBlob = mixStreamingFile;
       if (streamingBlob) {
         setUploadStage("streaming" as any);
         const streamExt = mixStreamingFile
@@ -738,8 +692,6 @@ const AdminDashboard = () => {
       setMixFile(null);
       setMixCoverArt(null);
       setMixStreamingFile(null);
-      setTranscodedMp3(null);
-      setTranscodeProgress(0);
       if (mixFileRef.current) mixFileRef.current.value = "";
       if (mixCoverArtRef.current) mixCoverArtRef.current.value = "";
       if (mixStreamingFileRef.current) mixStreamingFileRef.current.value = "";
@@ -1813,11 +1765,7 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                     onDrop={(e) => {
                       e.preventDefault();
                       setAudioDragOver(false);
-                      const file = e.dataTransfer.files?.[0];
-                      if (file && file.type.startsWith("audio/")) {
-                        setMixFile(file);
-                        if (mixFileRef.current) mixFileRef.current.value = "";
-                      }
+                      pickMixFile(e.dataTransfer.files?.[0] ?? null);
                     }}
                     onClick={() => !mixFile && mixFileRef.current?.click()}
                     className={`relative border-2 border-dashed rounded-md p-4 text-center transition-colors cursor-pointer ${
@@ -1831,8 +1779,8 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                     <input
                       ref={mixFileRef}
                       type="file"
-                      accept="audio/*"
-                      onChange={(e) => setMixFile(e.target.files?.[0] || null)}
+                      accept=".mp3,.m4a,audio/mpeg,audio/mp4"
+                      onChange={(e) => pickMixFile(e.target.files?.[0] || null)}
                       className="hidden"
                     />
                     {mixFile ? (
@@ -1866,45 +1814,6 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                     )}
                   </div>
                 </div>
-
-                {/* Auto-compress progress */}
-                {mixFile && !mixStreamingFile && (
-                  <div className="rounded-md border border-border/50 p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-display uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <Music className="w-3 h-3" />
-                        Compressing to 128kbps MP3
-                      </span>
-                      <span className="text-[10px] font-display text-muted-foreground">
-                        {isTranscoding
-                          ? `${transcodeProgress}%`
-                          : transcodedMp3
-                            ? `✓ ${(transcodedMp3.size / 1024 / 1024).toFixed(1)} MB`
-                            : transcodeError
-                              ? "⚠ Failed"
-                              : ""}
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          transcodeError ? "bg-destructive" : "bg-primary"
-                        }`}
-                        style={{ width: `${transcodedMp3 ? 100 : transcodeProgress}%` }}
-                      />
-                    </div>
-                    {transcodeError && (
-                      <p className="text-[10px] text-destructive font-body">
-                        {transcodeError} — you can still upload without a streaming version.
-                      </p>
-                    )}
-                    {transcodedMp3 && (
-                      <p className="text-[10px] text-muted-foreground font-body">
-                        MP3 streaming version ready — will be uploaded automatically.
-                      </p>
-                    )}
-                  </div>
-                )}
 
                 <div>
                   <label className="text-[10px] font-display uppercase tracking-wider text-muted-foreground mb-1 block">
