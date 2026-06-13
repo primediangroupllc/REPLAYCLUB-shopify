@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { BarChart3, Zap, Music, TrendingUp, ThumbsUp, AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -158,6 +158,27 @@ const EnergyChart = ({ profile }: { profile: number[] }) => {
 
 const MixReportCard = ({ mixId, analysis, hasWaveform, onAnalysisComplete }: MixReportCardProps) => {
   const [analyzing, setAnalyzing] = useState(false);
+  // Launch gate (P1 #5): this whole card is AI-derived (scores, coaching,
+  // summary, energy chart). Hide it from non-admins so normal users see only
+  // the neutral mix UI (title/waveform/playback, rendered by Profile). Default
+  // false → never flash coaching before the role check resolves. Self-contained
+  // check mirrors AdminScan; admins see the full card unchanged.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      if (active) setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleAnalyze = async () => {
     if (!hasWaveform) {
@@ -201,6 +222,9 @@ const MixReportCard = ({ mixId, analysis, hasWaveform, onAnalysisComplete }: Mix
       setAnalyzing(false);
     }
   };
+
+  // Non-admins never see the AI report card (see the gate note above).
+  if (!isAdmin) return null;
 
   if (!analysis) {
     return (

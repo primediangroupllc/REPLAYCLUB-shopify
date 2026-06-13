@@ -2418,7 +2418,7 @@ const Profile = () => {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="font-display text-sm font-semibold text-foreground uppercase tracking-wider">Your mixes</h3>
-                  <p className="text-[11px] text-muted-foreground font-body">Upload a set to get an AI report card after review.</p>
+                  <p className="text-[11px] text-muted-foreground font-body">Upload your sets — stream and download anytime.</p>
                 </div>
                 {userId && (
                   <UploadMixDialog
@@ -2436,11 +2436,13 @@ const Profile = () => {
                 )}
               </div>
 
-              {/* Sound DNA */}
-              <SoundDNA analyses={mixes.filter((m) => m.mix_analysis).map((m) => m.mix_analysis)} />
+              {/* Sound DNA — admin-only (AI-derived DJ fingerprint; hidden from normal users) */}
+              {isAdmin && (
+                <SoundDNA analyses={mixes.filter((m) => m.mix_analysis).map((m) => m.mix_analysis)} />
+              )}
 
-              {/* Mix Lineage Tree */}
-              <MixLineageTree mixes={mixes} />
+              {/* Mix Lineage Tree — admin-only (unfinished mix-intelligence; hidden from normal users) */}
+              {isAdmin && <MixLineageTree mixes={mixes} />}
 
               <div className="space-y-3">
                 {mixes.length === 0 ? (
