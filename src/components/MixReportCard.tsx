@@ -4,6 +4,7 @@ import { BarChart3, Zap, Music, TrendingUp, ThumbsUp, AlertTriangle, Loader2, Sp
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { track } from "@/lib/analytics";
+import { isMixLabUser } from "@/lib/mixLab";
 import { toast } from "sonner";
 
 interface TransitionDetail {
@@ -158,22 +159,16 @@ const EnergyChart = ({ profile }: { profile: number[] }) => {
 
 const MixReportCard = ({ mixId, analysis, hasWaveform, onAnalysisComplete }: MixReportCardProps) => {
   const [analyzing, setAnalyzing] = useState(false);
-  // Launch gate (P1 #5): this whole card is AI-derived (scores, coaching,
-  // summary, energy chart). Hide it from non-admins so normal users see only
-  // the neutral mix UI (title/waveform/playback, rendered by Profile). Default
-  // false → never flash coaching before the role check resolves. Self-contained
-  // check mirrors AdminScan; admins see the full card unchanged.
-  const [isAdmin, setIsAdmin] = useState(false);
+  // Mix Lab gate: this whole card is AI-derived (scores, coaching, summary,
+  // energy chart) — experimental. Show ONLY to the Mix Lab allowlist
+  // (fumix.mgmt), NOT all admins. Default false → never flash before the check
+  // resolves. UI-only gate; backend stays admin-role-gated.
+  const [canAccessMixLab, setCanAccessMixLab] = useState(false);
   useEffect(() => {
     let active = true;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-      if (active) setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+      if (active) setCanAccessMixLab(isMixLabUser(user?.email));
     })();
     return () => {
       active = false;
@@ -223,8 +218,8 @@ const MixReportCard = ({ mixId, analysis, hasWaveform, onAnalysisComplete }: Mix
     }
   };
 
-  // Non-admins never see the AI report card (see the gate note above).
-  if (!isAdmin) return null;
+  // Mix Lab only (fumix.mgmt) — everyone else sees no AI report card.
+  if (!canAccessMixLab) return null;
 
   if (!analysis) {
     return (

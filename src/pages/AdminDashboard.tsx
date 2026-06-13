@@ -102,6 +102,7 @@ import {
 } from "recharts";
 import logo from "@/assets/logo.png";
 import { logAdminAction } from "@/lib/auditLog";
+import { isMixLabUser } from "@/lib/mixLab";
 import MixStatusBadge, { MIX_STATUSES } from "@/components/MixStatusBadge";
 import { findPhotographerPackage } from "@/lib/bookingConstants";
 import { AdminShell } from "@/components/admin/AdminShell";
@@ -425,6 +426,8 @@ const LinksTabContent = () => {
 const AdminDashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  // Mix Lab (experimental mix-intel) access — fumix.mgmt only, NOT all admins.
+  const [canAccessMixLab, setCanAccessMixLab] = useState(false);
   // Honor ?tab=<id> for navigation from standalone admin pages back into a
   // specific dashboard tab. Falls back to overview when the param is missing
   // or doesn't match a known tab id.
@@ -526,6 +529,7 @@ const AdminDashboard = () => {
       return;
     }
     setIsAdmin(true);
+    setCanAccessMixLab(isMixLabUser(session.user.email));
     loadBookings();
     loadGiftCards();
     loadMixes();
@@ -2115,20 +2119,24 @@ const RosterPhotoLink = ({ value, label }: { value: string; label: string }) => 
                         >
                           Reject
                         </button>
-                        <button
-                          onClick={() => handleAnalyzeMix(mix.id)}
-                          className="text-[11px] font-display uppercase tracking-wider px-2 py-1 rounded-md bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
-                        >
-                          {mix.mix_analysis ? "Re-analyze" : "Analyze"}
-                        </button>
-                        <button
-                          onClick={() => setRecognizeMix({ id: mix.id, title: mix.title ?? "Mix" })}
-                          className="text-[11px] font-display uppercase tracking-wider px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition-colors"
-                        >
-                          Recognize Tracks
-                        </button>
+                        {canAccessMixLab && (
+                          <>
+                            <button
+                              onClick={() => handleAnalyzeMix(mix.id)}
+                              className="text-[11px] font-display uppercase tracking-wider px-2 py-1 rounded-md bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
+                            >
+                              {mix.mix_analysis ? "Re-analyze" : "Analyze"}
+                            </button>
+                            <button
+                              onClick={() => setRecognizeMix({ id: mix.id, title: mix.title ?? "Mix" })}
+                              className="text-[11px] font-display uppercase tracking-wider px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition-colors"
+                            >
+                              Recognize Tracks
+                            </button>
+                          </>
+                        )}
                       </div>
-                      {recognizeMix?.id === mix.id && (
+                      {canAccessMixLab && recognizeMix?.id === mix.id && (
                         <TrackRecognitionPanel
                           mix={recognizeMix}
                           mode="admin"

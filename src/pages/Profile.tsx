@@ -29,6 +29,7 @@ import { computeTier } from "@/hooks/useUserTier";
 import { RefundRequestDialog } from "@/components/RefundRequestDialog";
 import { AddToCalendarButton } from "@/components/AddToCalendarButton";
 import { AccountDeletionPanel } from "@/components/AccountDeletionPanel";
+import { isMixLabUser } from "@/lib/mixLab";
 
 const NotificationBell = lazy(() => import("@/components/NotificationBell"));
 
@@ -1618,6 +1619,8 @@ const Profile = () => {
   const [userEmail, setUserEmail] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Mix Lab (experimental mix-intel) access — fumix.mgmt only, NOT all admins.
+  const canAccessMixLab = isMixLabUser(userEmail);
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [reschedulingBooking, setReschedulingBooking] = useState<Booking | null>(null);
@@ -2436,13 +2439,13 @@ const Profile = () => {
                 )}
               </div>
 
-              {/* Sound DNA — admin-only (AI-derived DJ fingerprint; hidden from normal users) */}
-              {isAdmin && (
+              {/* Sound DNA — Mix Lab (fumix.mgmt) only */}
+              {canAccessMixLab && (
                 <SoundDNA analyses={mixes.filter((m) => m.mix_analysis).map((m) => m.mix_analysis)} />
               )}
 
-              {/* Mix Lineage Tree — admin-only (unfinished mix-intelligence; hidden from normal users) */}
-              {isAdmin && <MixLineageTree mixes={mixes} />}
+              {/* Mix Lineage Tree — Mix Lab (fumix.mgmt) only */}
+              {canAccessMixLab && <MixLineageTree mixes={mixes} />}
 
               <div className="space-y-3">
                 {mixes.length === 0 ? (
