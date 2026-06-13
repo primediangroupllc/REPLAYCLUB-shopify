@@ -52,13 +52,12 @@ export default function MixesSection({ isLoggedIn, youtubeHandle }: MixesSection
         >
           <p className="text-caption chrome-text uppercase !tracking-[0.3em]">Mixes</p>
           <div className="space-y-2">
-            <h2 className="text-h2 font-display text-foreground">What did the set do?</h2>
+            <h2 className="text-h2 font-display text-foreground">Keep every set. Play it back.</h2>
             <p className="font-body text-muted-foreground">{SUPPORT_LINE}</p>
           </div>
           <ul className="space-y-1.5 text-sm font-body text-muted-foreground">
             <li>Your sets, kept and streamable.</li>
-            <li>See the shape of the set — where it built, where it held.</li>
-            <li>And read what it did, in plain words.</li>
+            <li>Upload, listen back, and share when ready.</li>
           </ul>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3 pt-1">
             <button
@@ -118,14 +117,6 @@ export default function MixesSection({ isLoggedIn, youtubeHandle }: MixesSection
               </span>
             ))}
           </div>
-
-          <blockquote className="font-body text-sm text-foreground/90 italic leading-relaxed border-l-2 border-chrome/40 pl-3">
-            &ldquo;{exampleMix.excerpt}&rdquo;
-          </blockquote>
-
-          <p className="text-[10px] text-muted-foreground/80 font-body uppercase tracking-[0.12em]">
-            A real set, read by Replay
-          </p>
         </motion.div>
       </div>
     </section>
