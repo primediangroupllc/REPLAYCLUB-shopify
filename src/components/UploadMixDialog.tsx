@@ -157,6 +157,8 @@ export default function UploadMixDialog({
           description: description.trim() || null,
           file_url: storagePath,
           recorded_at: new Date().toISOString(),
+          // Launch: mixes don't expire — keep them on the profile (override the 7-day default).
+          expires_at: null,
         })
         .select("id")
         .single();

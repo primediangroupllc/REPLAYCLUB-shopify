@@ -657,6 +657,8 @@ const AdminDashboard = () => {
         cover_art_url: coverArtPath,
         streaming_url: streamingPath,
         recorded_at: new Date().toISOString(),
+        // Launch: mixes don't expire — keep them on the user's profile.
+        expires_at: null,
         // Admin-assigned mixes are live immediately (unchanged behaviour); the
         // status/provenance columns just record that explicitly.
         status: "approved",

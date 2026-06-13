@@ -2418,7 +2418,7 @@ const Profile = () => {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="font-display text-sm font-semibold text-foreground uppercase tracking-wider">Your mixes</h3>
-                  <p className="text-[11px] text-muted-foreground font-body">Upload your sets — stream and download anytime.</p>
+                  <p className="text-[11px] text-muted-foreground font-body">Your mixes stay in your profile — stream and download anytime.</p>
                 </div>
                 {userId && (
                   <UploadMixDialog
