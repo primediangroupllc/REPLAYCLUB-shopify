@@ -3,7 +3,6 @@ import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { track } from "@/lib/analytics";
 import WaveformGlyph from "@/components/WaveformGlyph";
-import { exampleMix } from "@/assets/exampleMix";
 import mixPlaceholder from "@/assets/mix-placeholder.jpg";
 
 // Supporting line — swappable. Recommended: A (calm, premium, on-brand).
@@ -20,9 +19,17 @@ interface MixesSectionProps {
  *
  * Bottom of the EXPERIENCE-SPEC pronoun ladder: it talks about "the set",
  * never "you". No scores, no identity, no DNA, no reputation, no tracklist
- * (Stage B). The artifact's data is a static snapshot of a real approved mix
- * (see exampleMix.ts) — the section invents nothing.
+ * (Stage B). The card is a STATIC PRODUCT MOCKUP — no real mix, user, or
+ * analysis data, no audio, no DB query.
  */
+// Static decorative waveform for the homepage product mockup (not real audio).
+const MOCKUP_WAVEFORM = [
+  0.32, 0.5, 0.68, 0.55, 0.8, 0.62, 0.9, 0.72, 0.84, 0.6, 0.74, 0.52, 0.66,
+  0.86, 0.7, 0.92, 0.76, 0.6, 0.82, 0.7, 0.56, 0.72, 0.86, 0.64, 0.78, 0.9,
+  0.7, 0.6, 0.8, 0.7, 0.86, 0.6, 0.7, 0.76, 0.54, 0.66, 0.82, 0.7, 0.9, 0.64,
+  0.76, 0.6, 0.7, 0.86, 0.7, 0.55, 0.8, 0.66, 0.76, 0.7, 0.6, 0.85, 0.7, 0.5,
+  0.66, 0.74,
+];
 export default function MixesSection({ isLoggedIn, youtubeHandle }: MixesSectionProps) {
   const navigate = useNavigate();
   const deckViewTracked = useRef(false);
@@ -79,7 +86,7 @@ export default function MixesSection({ isLoggedIn, youtubeHandle }: MixesSection
           </div>
         </motion.div>
 
-        {/* Artifact — a real, approved mix (static snapshot) */}
+        {/* Static product mockup — no real mix / user / analysis data */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -97,15 +104,15 @@ export default function MixesSection({ isLoggedIn, youtubeHandle }: MixesSection
             />
             <div className="min-w-0">
               <p className="font-display text-sm font-semibold text-foreground uppercase tracking-wider truncate">
-                {exampleMix.title}
+                REPLAY CLUB MIX
               </p>
               <p className="text-[11px] text-muted-foreground font-body">
-                FUMIX · {exampleMix.dateLabel}
+                Upload. Store. Listen back.
               </p>
             </div>
           </div>
 
-          <WaveformGlyph peaks={exampleMix.waveformPeaks} className="w-full h-14" />
+          <WaveformGlyph peaks={MOCKUP_WAVEFORM} className="w-full h-14" />
         </motion.div>
       </div>
     </section>
