@@ -16,7 +16,7 @@ project_id = "ynpkkoqzenmctqrmtnxs"
   [functions.stripe-webhook]
     verify_jwt = false
   [functions.stranded-charge-tripwire]
-    verify_jwt = false
+    verify_jwt = true
   [functions.verify-captcha]
     verify_jwt = false
   [functions.notify-waitlist-on-slot-release]

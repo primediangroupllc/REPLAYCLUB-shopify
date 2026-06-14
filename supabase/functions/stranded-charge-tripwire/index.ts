@@ -54,15 +54,35 @@ async function retrieveSession(id: string): Promise<Stripe.Checkout.Session | nu
   return null;
 }
 
+function parseJwtClaims(token: string): Record<string, unknown> | null {
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const payload = parts[1]
+      .replaceAll("-", "+")
+      .replaceAll("_", "/")
+      .padEnd(Math.ceil(parts[1].length / 4) * 4, "=");
+    return JSON.parse(atob(payload)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // Service-only guard: cron passes the service-role key as the bearer (from Vault).
-  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  // SERVICE-ONLY guard. SUPABASE_SERVICE_ROLE_KEY is kept ONLY as the DB client
+  // credential (createClient below) — NOT for auth: under the new API-key model the
+  // runtime injects an sb_secret_* value here, which is NOT the legacy service-role
+  // JWT the cron sends, so raw-string equality rejected every cron call (403).
+  // verify_jwt=true means the gateway already verified the bearer's signature; we
+  // additionally require the service-role claim so only the cron (service role) —
+  // not a logged-in user JWT — can drive the tripwire.
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!serviceKey || token !== serviceKey) {
-    return json({ error: "forbidden" }, 403);
-  }
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+  const claims = parseJwtClaims(authHeader.slice("Bearer ".length).trim());
+  if (claims?.role !== "service_role") return json({ error: "forbidden" }, 403);
 
   if (stripeClients.length === 0) {
     return json({ skipped: true, reason: "no STRIPE_SECRET_KEY configured" });
