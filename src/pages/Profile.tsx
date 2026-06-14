@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, LogOut, Music, Calendar, User, Download, X, Gift, MapPin, Clock, ChevronDown, ChevronUp, ExternalLink, Info, Mail, BarChart3, CalendarClock, AlertTriangle, Bell, Trash2, Award, FileText, Trophy, Star, Target, Play, Pause, SkipBack, SkipForward, Volume2, Maximize2, Minimize2, Loader2, Ticket as TicketIcon } from "lucide-react";
-import { ListMusic, Plus, Check } from "lucide-react";
+import { ListMusic, Plus, Check, FlaskConical } from "lucide-react";
 import { Sparkles } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { usePublicSiteSettings, BOOKING_POLICY_DEFAULTS } from "@/hooks/useSiteSettings";
@@ -23,6 +23,8 @@ import MixLineageTree from "@/components/MixLineageTree";
 import UploadMixDialog from "@/components/UploadMixDialog";
 import MixStatusBadge from "@/components/MixStatusBadge";
 import TrackRecognitionPanel from "@/components/TrackRecognitionPanel";
+import MixLabSection from "@/components/mixlab/MixLabSection";
+import { useRecognizedMixes } from "@/hooks/useRecognizedMixes";
 import TicketPass, { type TicketPassData } from "@/components/TicketPass";
 import SessionRecordBadge from "@/components/SessionRecordBadge";
 import ReminderPreferences from "@/components/ReminderPreferences";
@@ -31,6 +33,14 @@ import { RefundRequestDialog } from "@/components/RefundRequestDialog";
 import { AddToCalendarButton } from "@/components/AddToCalendarButton";
 import { AccountDeletionPanel } from "@/components/AccountDeletionPanel";
 import { isMixLabUser } from "@/lib/mixLab";
+
+// Single source of truth for Profile tabs — keeps the valid-tab list from drifting
+// across initialTab parsing, the back/forward sync, and the tab bar. "lab" (Mix Lab)
+// is a structurally valid tab; its visibility is gated separately by canAccessMixLab.
+const PROFILE_TAB_IDS = ["mixes", "lab", "tickets", "bookings", "waitlist", "profile"] as const;
+type ProfileTab = (typeof PROFILE_TAB_IDS)[number];
+const isProfileTab = (t: string | null): t is ProfileTab =>
+  t != null && (PROFILE_TAB_IDS as readonly string[]).includes(t);
 
 const NotificationBell = lazy(() => import("@/components/NotificationBell"));
 
@@ -1558,12 +1568,11 @@ const Profile = () => {
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   const [tickets, setTickets] = useState<TicketPassData[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = ((): "bookings" | "mixes" | "waitlist" | "tickets" | "profile" => {
+  const initialTab: ProfileTab = (() => {
     const t = searchParams.get("tab");
-    if (t === "bookings" || t === "mixes" || t === "waitlist" || t === "tickets" || t === "profile") return t;
-    return "mixes";
+    return isProfileTab(t) ? t : "mixes";
   })();
-  const [activeTab, setActiveTab] = useState<"bookings" | "mixes" | "waitlist" | "tickets" | "profile">(initialTab);
+  const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
   // ?upload=1 (from the homepage MIXES CTA) auto-opens the upload dialog on the mixes tab.
   const initialUpload = searchParams.get("upload") === "1";
   // Recognition Room entry points stay hidden until Stage B (live ACRCloud) data exists.
@@ -1594,10 +1603,7 @@ const Profile = () => {
   // React to browser back/forward changing ?tab=
   useEffect(() => {
     const t = searchParams.get("tab");
-    if (
-      (t === "bookings" || t === "mixes" || t === "waitlist" || t === "tickets" || t === "profile") &&
-      t !== activeTab
-    ) {
+    if (isProfileTab(t) && t !== activeTab) {
       setActiveTab(t);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1622,6 +1628,20 @@ const Profile = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   // Mix Lab (experimental mix-intel) access — fumix.mgmt only, NOT all admins.
   const canAccessMixLab = isMixLabUser(userEmail);
+  // If a non-fumix user lands on ?tab=lab (structurally valid but gated), fall back —
+  // only after auth has loaded, so a fumix deep-link isn't bounced before email resolves.
+  useEffect(() => {
+    if (!loading && activeTab === "lab" && !canAccessMixLab) setActiveTab("mixes");
+  }, [loading, activeTab, canAccessMixLab]);
+  // Phase 1 — single source of truth for "which mixes have recognition data".
+  // One read-only fetch, shared by the Mix Lab tab (MixLabSection) and the
+  // Mixes-tab "Open in Mix Lab" per-mix action. Gated to Mix Lab users so a
+  // normal profile never queries confirmed_tracklist.
+  const {
+    recognized: recognizedMixes,
+    recognizedIds,
+    loading: recognizedLoading,
+  } = useRecognizedMixes(mixes, userId, canAccessMixLab);
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [reschedulingBooking, setReschedulingBooking] = useState<Booking | null>(null);
@@ -1878,6 +1898,9 @@ const Profile = () => {
 
   const tabs = [
     { id: "mixes" as const, label: "Mixes", icon: Music },
+    ...(canAccessMixLab
+      ? [{ id: "lab" as const, label: "Mix Lab", icon: FlaskConical }]
+      : []),
     { id: "tickets" as const, label: "Tickets", icon: TicketIcon },
     { id: "bookings" as const, label: "Bookings", icon: Calendar },
     { id: "waitlist" as const, label: "Waitlist", icon: Bell },
@@ -1981,7 +2004,7 @@ const Profile = () => {
         </motion.div>
 
         {/* Section Tabs */}
-        <div className="grid grid-cols-5 gap-1 bg-card rounded-lg p-1 sm:flex sm:justify-center">
+        <div className={`grid ${canAccessMixLab ? "grid-cols-6" : "grid-cols-5"} gap-1 bg-card rounded-lg p-1 sm:flex sm:justify-center`}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -2005,6 +2028,9 @@ const Profile = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
         >
+          {activeTab === "lab" && canAccessMixLab && (
+            <MixLabSection recognized={recognizedMixes} loading={recognizedLoading} />
+          )}
           {activeTab === "tickets" && (
             <div className="space-y-4">
               {tickets.length === 0 ? (
@@ -2466,6 +2492,28 @@ const Profile = () => {
                         </div>
                       )}
                       <MixCard mix={mix} />
+                      {/* Phase 1 entry point: only recognized mixes (shared
+                          recognizedIds) expose Mix Lab; identity view only — no
+                          authoring. Hidden for non-Mix-Lab users via canAccessMixLab. */}
+                      {canAccessMixLab && recognizedIds?.has(mix.id) && (
+                        <div className="flex justify-end pt-0.5">
+                          <button
+                            onClick={() => {
+                              // Set ?tab=lab&mix=<id> AND activeTab together so the
+                              // tab-mirror effect doesn't revert ?tab back to "mixes".
+                              const next = new URLSearchParams(searchParams);
+                              next.set("tab", "lab");
+                              next.set("mix", mix.id);
+                              setSearchParams(next, { replace: false });
+                              setActiveTab("lab");
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-display uppercase tracking-wider px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 transition-colors"
+                          >
+                            <FlaskConical className="h-3 w-3" />
+                            Open in Mix Lab
+                          </button>
+                        </div>
+                      )}
                       {RECOGNITION_ROOM_ENABLED && (
                         <>
                           <div className="flex justify-end pt-0.5">
