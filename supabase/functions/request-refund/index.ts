@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.3";
 import Stripe from "https://esm.sh/stripe@17.5.0?target=deno";
+import { parseBookingDateTime } from "../_shared/bookingTime.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,7 +42,7 @@ Deno.serve(async (req) => {
       return json({ error: "Refund already requested" }, 400);
     }
 
-    const sessionStart = new Date(`${booking.booking_date}T${booking.booking_time || "00:00"}`);
+    const sessionStart = parseBookingDateTime(booking.booking_date, booking.booking_time);
     const hoursBefore = (sessionStart.getTime() - Date.now()) / 36e5;
     const autoApprove = hoursBefore >= AUTO_APPROVE_HOURS;
 

@@ -11,6 +11,7 @@ import { ListMusic, Plus, Check } from "lucide-react";
 import { Sparkles } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { usePublicSiteSettings, BOOKING_POLICY_DEFAULTS } from "@/hooks/useSiteSettings";
+import { parseBookingDateTime } from "@/lib/bookingTime";
 
 
 import BookingCountdownBanner from "@/components/BookingCountdownBanner";
@@ -2182,7 +2183,7 @@ const Profile = () => {
               {/* Paid Bookings */}
               {bookings.filter(b => b.payment_status !== "promo").length > 0 && (
                 bookings.filter(b => b.payment_status !== "promo").map((booking) => {
-                  const bookingDate = new Date(booking.booking_date + "T" + (booking.booking_time || "00:00"));
+                  const bookingDate = parseBookingDateTime(booking.booking_date, booking.booking_time);
                   const isUpcoming = bookingDate > new Date();
                   const hoursUntil = (bookingDate.getTime() - Date.now()) / (1000 * 60 * 60);
                   const withinCutoff = hoursUntil < cancelCutoffHours && hoursUntil > 0;

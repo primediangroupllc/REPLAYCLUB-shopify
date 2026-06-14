@@ -583,6 +583,44 @@ serve(async (req) => {
         break;
       }
 
+      case "charge.refunded": {
+        // Reconcile OUT-OF-BAND refunds (Stripe Dashboard, or admin "process refund in
+        // Stripe manually"). Our in-app refund fns already flip the booking, so this
+        // no-ops for those (skips when already 'refunded'); it catches dashboard refunds
+        // that would otherwise leave the booking stuck on 'paid' after the money's back.
+        // NOTE: requires `charge.refunded` to be added to the webhook endpoint's events.
+        const charge = event.data.object as Stripe.Charge;
+        const refPaymentIntentId = typeof charge.payment_intent === "string"
+          ? charge.payment_intent
+          : charge.payment_intent?.id ?? null;
+        const fullyRefunded = charge.refunded === true ||
+          (charge.amount_refunded ?? 0) >= (charge.amount ?? 0);
+        if (refPaymentIntentId) {
+          try {
+            const sessions = await stripe.checkout.sessions.list({ payment_intent: refPaymentIntentId, limit: 1 });
+            const sess = sessions.data[0];
+            if (sess) {
+              const { data: rb } = await supabase
+                .from("bookings")
+                .select("id, payment_status, amount_cents")
+                .eq("stripe_session_id", sess.id)
+                .maybeSingle();
+              if (rb && rb.payment_status !== "refunded") {
+                await supabase.from("bookings").update({
+                  payment_status: fullyRefunded ? "refunded" : rb.payment_status,
+                  refund_status: "processed",
+                  refunded_amount_cents: charge.amount_refunded ?? rb.amount_cents,
+                }).eq("id", rb.id);
+                console.log(`[refund] booking ${rb.id} reconciled (charge ${charge.id}, fully=${fullyRefunded})`);
+              }
+            }
+          } catch (e) {
+            console.error("charge.refunded -> booking reconcile failed:", e);
+          }
+        }
+        break;
+      }
+
       case "identity.verification_session.verified": {
         // Stripe Identity confirmed the document + selfie. We pull DOB/name
         // from the verification report, enforce the 18+ gate, and either
@@ -601,23 +639,31 @@ serve(async (req) => {
         let firstName: string | null = null;
         let lastName: string | null = null;
         let reportFetchFailed = false;
-        try {
-          const expanded = await stripe.identity.verificationSessions.retrieve(
-            session.id,
-            { expand: ["last_verification_report"] },
-          );
-          const report = expanded.last_verification_report as
-            | Stripe.Identity.VerificationReport
-            | string
-            | null;
-          if (report && typeof report !== "string") {
-            dob = report.document?.dob ?? null;
-            firstName = report.document?.first_name ?? null;
-            lastName = report.document?.last_name ?? null;
-          }
-        } catch (rErr) {
-          console.error("[identity] failed to retrieve report:", rErr);
+        // DOB is a SENSITIVE verified output: the standard STRIPE_SECRET_KEY CANNOT
+        // read verified_outputs.dob (it returns null) — which is why every LIVE
+        // verification previously fell into admin review. Read it with a RESTRICTED
+        // key scoped to "Identity Verification Results" + "Recent Detailed Verification
+        // Results" = Read. Missing key / failed retrieve -> reportFetchFailed -> the
+        // admin-review safety gate below (we never auto-approve without a confirmed DOB).
+        const restrictedKey = Deno.env.get("STRIPE_IDENTITY_RESTRICTED_KEY") || "";
+        if (!restrictedKey) {
+          console.error("[identity] STRIPE_IDENTITY_RESTRICTED_KEY missing — cannot read DOB; routing to admin review");
           reportFetchFailed = true;
+        } else {
+          try {
+            const idStripe = new Stripe(restrictedKey, { apiVersion: "2025-08-27.basil" });
+            const vs = await idStripe.identity.verificationSessions.retrieve(
+              session.id,
+              { expand: ["verified_outputs.dob", "verified_outputs.first_name", "verified_outputs.last_name"] },
+            );
+            const vo = vs.verified_outputs;
+            dob = (vo?.dob as { day?: number; month?: number; year?: number } | null) ?? null;
+            firstName = vo?.first_name ?? null;
+            lastName = vo?.last_name ?? null;
+          } catch (rErr) {
+            console.error("[identity] restricted verified_outputs retrieve failed:", rErr);
+            reportFetchFailed = true;
+          }
         }
 
         const dobIso =
