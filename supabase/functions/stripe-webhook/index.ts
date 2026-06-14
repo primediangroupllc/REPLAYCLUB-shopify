@@ -654,7 +654,7 @@ serve(async (req) => {
             const idStripe = new Stripe(restrictedKey, { apiVersion: "2025-08-27.basil" });
             const vs = await idStripe.identity.verificationSessions.retrieve(
               session.id,
-              { expand: ["verified_outputs.dob", "verified_outputs.first_name", "verified_outputs.last_name"] },
+              { expand: ["verified_outputs.dob"] },
             );
             const vo = vs.verified_outputs;
             dob = (vo?.dob as { day?: number; month?: number; year?: number } | null) ?? null;
