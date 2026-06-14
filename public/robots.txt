@@ -1,9 +1,4 @@
-# ⚠️ SOFT-LAUNCH — site is on the live domain but not open for real bookings yet
-# (Stripe in test mode). Blocking crawlers so the interim site isn't indexed.
-#
-# ❗❗ REMOVE THIS AT REAL LAUNCH ❗❗ — restore the allow-all + sitemap:
-#   User-agent: *
-#   Allow: /
-#   Sitemap: https://replayclub.io/sitemap.xml
 User-agent: *
-Disallow: /
+Allow: /
+
+Sitemap: https://www.replayclub.io/sitemap.xml
