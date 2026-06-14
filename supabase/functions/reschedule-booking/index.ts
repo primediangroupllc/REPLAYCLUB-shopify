@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.3";
 import { resolveAdminEmails, sendTwilioSms, resolveAdminPhones } from "../_shared/site-settings.ts";
+import { parseBookingDateTime } from "../_shared/bookingTime.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -78,7 +79,7 @@ Deno.serve(async (req) => {
     }
 
     // Enforce 24-hour policy
-    const bookingDateTime = new Date(`${booking.booking_date}T${booking.booking_time || "00:00"}`);
+    const bookingDateTime = parseBookingDateTime(booking.booking_date, booking.booking_time);
     const now = new Date();
     const hoursUntil = (bookingDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 

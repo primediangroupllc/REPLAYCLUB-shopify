@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { resolveSmsFrom } from '../_shared/site-settings.ts'
+import { parseBookingDateTime } from '../_shared/bookingTime.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,7 +75,7 @@ Deno.serve(async (req) => {
 
   // Filter to those starting inside the 90–150 minute window
   const eligible = bookings.filter((b: any) => {
-    const start = new Date(`${b.booking_date}T${b.booking_time}`)
+    const start = parseBookingDateTime(b.booking_date, b.booking_time)
     return start >= windowStart && start <= windowEnd
   })
 

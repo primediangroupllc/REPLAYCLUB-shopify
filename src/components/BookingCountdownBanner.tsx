@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Clock, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { parseBookingDateTime } from "@/lib/bookingTime";
 
 interface UpcomingBooking {
   id: string;
@@ -26,7 +27,7 @@ const formatRemaining = (ms: number) => {
 };
 
 const BookingCountdownBanner = ({ booking }: Props) => {
-  const target = new Date(`${booking.booking_date}T${booking.booking_time || "00:00"}`).getTime();
+  const target = parseBookingDateTime(booking.booking_date, booking.booking_time).getTime();
   const [remaining, setRemaining] = useState(target - Date.now());
   const [inviteToken, setInviteToken] = useState<string | null>(null);
 

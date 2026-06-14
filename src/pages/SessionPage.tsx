@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { parseBookingDateTime } from "@/lib/bookingTime";
 import { motion } from "framer-motion";
 import { Clock, Users, MessageCircle, Send, UserPlus, Copy, Check, ShieldCheck, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,8 +42,7 @@ const CountdownTimer = ({ targetDate, targetTime }: { targetDate: string; target
 
   useEffect(() => {
     const calculateTime = () => {
-      const [hours] = targetTime.split(":").map(Number);
-      const target = new Date(`${targetDate}T${String(hours).padStart(2, "0")}:00:00`);
+      const target = parseBookingDateTime(targetDate, targetTime);
       const now = new Date();
       const diff = target.getTime() - now.getTime();
 

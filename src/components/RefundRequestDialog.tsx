@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { parseBookingDateTime } from "@/lib/bookingTime";
 
 interface Props {
   open: boolean;
@@ -21,7 +22,7 @@ export function RefundRequestDialog({ open, onOpenChange, bookingId, bookingDate
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const sessionStart = new Date(`${bookingDate}T${bookingTime || "00:00"}`);
+  const sessionStart = parseBookingDateTime(bookingDate, bookingTime);
   const hoursBefore = (sessionStart.getTime() - Date.now()) / 36e5;
   const willAutoApprove = hoursBefore >= 24;
 
