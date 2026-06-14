@@ -1936,7 +1936,7 @@ const Profile = () => {
           .filter(b => b.booking_time && b.booking_time !== "TBD - Free Session")
           .map(b => ({
             ...b,
-            ts: new Date(`${b.booking_date}T${b.booking_time || "00:00"}`).getTime(),
+            ts: parseBookingDateTime(b.booking_date, b.booking_time).getTime(),
           }))
           .filter(b => b.ts - now <= 24 * 60 * 60 * 1000 && b.ts - now > -2 * 60 * 60 * 1000)
           .sort((a, b) => a.ts - b.ts)[0];
@@ -2358,8 +2358,8 @@ const Profile = () => {
                                   title: `Replay Club — ${booking.room_title}`,
                                   description: `Confirmation: ${booking.id.slice(0, 8)}`,
                                   location: "Replay Club — pickup details in confirmation email",
-                                  start: new Date(`${booking.booking_date}T${booking.booking_time || "10:00"}`),
-                                  end: new Date(new Date(`${booking.booking_date}T${booking.booking_time || "10:00"}`).getTime() + 2 * 60 * 60 * 1000),
+                                  start: bookingDate,
+                                  end: new Date(bookingDate.getTime() + 2 * 60 * 60 * 1000),
                                 }}
                               />
                               <button

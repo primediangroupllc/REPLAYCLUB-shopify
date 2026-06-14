@@ -7,6 +7,7 @@ export interface CalendarEvent {
 }
 
 function fmt(d: Date): string {
+  if (Number.isNaN(d.getTime())) return ""; // guard: never throw on an invalid Date — degrade the link instead
   return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
